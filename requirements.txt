@@ -3,3 +3,9 @@ pandas
 scikit-learn
 joblib
 gunicorn
+
+
+mysql-connector-python
+numpy
+scipy
+threadpoolctl
