@@ -268,7 +268,10 @@ def detectar_respuesta_directa(mensaje):
     texto = texto.replace("nesecito", "necesito")
     texto = texto.replace("necesitoo", "necesito")
     texto = texto.replace("necestio", "necesito")
-    texto = texto.replace("ayuda en nada", "ayuda")
+    texto = texto.replace("examenes", "examenes")
+    texto = texto.replace("pruevas", "pruebas")
+    texto = texto.replace("defenza", "defensa")
+    texto = texto.replace("defenzas", "defensas")
 
     operacion = detectar_operacion_matematica(texto)
 
@@ -313,14 +316,8 @@ def detectar_respuesta_directa(mensaje):
         "vete a la mierda", "callate", "basura", "inutil"
     ]
 
-    contiene_groseria = False
-    for groseria in groserias:
-        if groseria in texto:
-            contiene_groseria = True
-            break
+    contiene_groseria = any(groseria in texto for groseria in groserias)
 
-    # Si el estudiante usa groserías, pero además dice que no necesita ayuda,
-    # se responde cerrando bien la conversación y marcando límite de respeto.
     if contiene_groseria and (
         "no necesito" in texto or "no quiero ayuda" in texto or "no quiero nada" in texto or
         "nada" in texto or "mas rato" in texto or "luego" in texto
@@ -353,6 +350,12 @@ def detectar_respuesta_directa(mensaje):
             "respuesta": "Hola 😊 Estoy aquí para ayudarte.\n\nPuedes contarme si necesitas apoyo emocional, ayuda con alguna materia o simplemente conversar.\n\n¿En qué te puedo ayudar hoy?"
         }
 
+    # Si el mensaje empieza con saludo, pero trae un problema real, se analiza el problema.
+    for saludo in saludos:
+        if texto.startswith(saludo + " "):
+            texto = texto.replace(saludo + " ", "", 1).strip()
+            break
+
     # CUANDO EL USUARIO DICE QUE NO NECESITA NADA O QUIERE HABLAR DESPUÉS
     sin_ayuda = [
         "no en nada", "en nada", "nada", "no necesito nada",
@@ -384,6 +387,69 @@ def detectar_respuesta_directa(mensaje):
             "emocion": "NEUTRAL",
             "nivel": "BAJA",
             "respuesta": "Estoy aquí para escucharte y ayudarte 😊\n\nPuedes hablar conmigo sobre tus materias, tareas, emociones o alguna situación que estés viviendo en el colegio.\n\n¿Cómo te sientes tú hoy?"
+        }
+
+    # ANSIEDAD, NERVIOS Y ESTRÉS POR EVALUACIONES
+    palabras_nervios = [
+        "nervioso", "nerviosa", "ansioso", "ansiosa", "estresado", "estresada",
+        "preocupado", "preocupada", "asustado", "asustada", "me da miedo",
+        "tengo miedo", "me preocupa", "presionado", "presionada", "bloqueado",
+        "bloqueada", "me bloqueo", "no puedo dormir", "me tiembla", "me pongo mal"
+    ]
+
+    evaluaciones = [
+        "examen", "examenes", "prueba", "pruebas", "evaluacion", "evaluaciones",
+        "final", "finales", "prueba final", "pruebas finales", "examen final",
+        "examenes finales", "defensa", "defensas", "defensa final", "defensas finales",
+        "exposicion", "exposiciones", "presentacion", "presentaciones",
+        "oral", "examen oral", "tribunal", "jurado", "calificacion", "nota", "notas",
+        "aplazar", "aplazaron", "reprobar", "reprobe", "recuperatorio", "recuperacion",
+        "trabajo final", "proyecto final"
+    ]
+
+    if any(p in texto for p in palabras_nervios) and any(e in texto for e in evaluaciones):
+        return {
+            "categoria": "ansiedad_evaluacion",
+            "emocion": "ANSIOSO",
+            "nivel": "MEDIA",
+            "respuesta": "Entiendo. Lo que describes parece nervios o ansiedad por una evaluación importante.\n\nEsto puede pasar antes de exámenes, pruebas finales, defensas, exposiciones o presentaciones, especialmente cuando sientes que todo debe salir bien.\n\nRecomendación: respira lento por unos segundos, divide lo que debes hacer en pasos pequeños y repasa primero lo más importante. No intentes resolver todo de golpe.\n\n¿Qué es lo que más te preocupa: olvidarte, equivocarte, que te evalúen o no alcanzar la nota?"
+        }
+
+    # PRESIÓN POR DEFENSAS, FINALES, PRESENTACIONES O SITUACIONES IMPORTANTES
+    presion_general = [
+        "todo debe funcionar", "todo tiene que salir bien", "si algo falla",
+        "si sale mal", "estoy perdido", "estoy perdida", "me ira mal",
+        "voy a fallar", "voy a fracasar", "no puedo fallar", "no debe fallar",
+        "me van a aplazar", "me quiere aplazar", "me pueden aplazar",
+        "me pueden reprobar", "me van a reprobar", "estoy contra el tiempo",
+        "no me alcanza el tiempo", "me siento presionado", "me siento presionada"
+    ]
+
+    if any(p in texto for p in presion_general) or (
+        any(e in texto for e in evaluaciones) and ("fallar" in texto or "falla" in texto or "perdido" in texto or "perdida" in texto)
+    ):
+        return {
+            "categoria": "presion_academica_evaluacion",
+            "emocion": "ESTRESADO",
+            "nivel": "MEDIA",
+            "respuesta": "Comprendo esa presión. Cuando una prueba final, defensa, exposición o evaluación parece definir todo, es normal sentirse saturado.\n\nRecomendación: enfócate en lo que sí puedes controlar: revisar lo esencial, preparar un orden de ideas, practicar una vez y descansar un poco antes de presentarte.\n\nSi sientes que la presión es demasiada, habla con alguien de confianza o con el área de psicología para recibir apoyo.\n\n¿Qué parte te preocupa más en este momento?"
+        }
+
+    # CONFLICTO O PRESIÓN CON DOCENTE EN EVALUACIONES
+    docentes = ["profesor", "docente", "licenciado", "licenciada", "maestro", "maestra", "profe"]
+    acciones_docente = [
+        "quiere aplazar", "me quiere aplazar", "me va aplazar", "me va a aplazar",
+        "me puede aplazar", "me quiere reprobar", "me va a reprobar",
+        "me amenaza", "me presiona", "me exige", "me reclama", "me grita",
+        "me trata mal", "me pone nervioso", "me pone nerviosa"
+    ]
+
+    if any(d in texto for d in docentes) and any(a in texto for a in acciones_docente):
+        return {
+            "categoria": "estres_docente_evaluacion",
+            "emocion": "ESTRESADO",
+            "nivel": "MEDIA",
+            "respuesta": "Entiendo que eso te genere preocupación. Sentir presión por parte de un docente antes de una prueba, defensa o evaluación puede aumentar mucho los nervios.\n\nRecomendación: intenta separar dos cosas: lo que debes preparar y cómo te está afectando la presión. Si el trato te hace sentir mal, coméntalo con tus padres, tutor o el área de psicología.\n\n¿Te preocupa más la evaluación o la forma en que el docente te está tratando?"
         }
 
     # PREGUNTAS SOBRE LO QUE SABE HACER EL BOT
@@ -446,7 +512,7 @@ def detectar_respuesta_directa(mensaje):
             "categoria": "estres_academico_notas",
             "emocion": "ESTRESADO",
             "nivel": "MEDIA",
-            "respuesta": "Ahora entiendo mejor. Te refieres a una nota o calificación que te afectó.\n\nEs normal sentirse preocupado cuando una nota no sale como esperabas, pero una calificación no define tu capacidad.\n\nRecomendación: revisa en qué parte fallaste, pregunta al profesor qué puedes mejorar y organiza un pequeño plan de estudio para recuperar esa materia.\n\n¿Esa nota te hizo sentir triste, preocupado o presionado?"
+            "respuesta": "Ahora entiendo mejor. Te refieres a una nota, calificación, prueba o evaluación que te afectó.\n\nEs normal sentirse preocupado cuando una evaluación no sale como esperabas, pero una nota no define tu capacidad.\n\nRecomendación: revisa en qué parte fallaste, pregunta qué puedes mejorar y organiza un pequeño plan para recuperarte.\n\n¿Eso te hizo sentir triste, preocupado o presionado?"
         }
 
     # RESPUESTAS CORTAS DE CONTINUACIÓN
@@ -458,7 +524,7 @@ def detectar_respuesta_directa(mensaje):
             "categoria": "continuacion_ambigua",
             "emocion": "NEUTRAL",
             "nivel": "BAJA",
-            "respuesta": "Entiendo, pero necesito que me des una pista más para ayudarte bien.\n\n¿Fue por una nota, por un profesor, por una tarea, por tus compañeros o por cómo te sentías?"
+            "respuesta": "Entiendo, pero necesito que me des una pista más para ayudarte bien.\n\n¿Fue por una nota, por un profesor, por una prueba, por una defensa, por una tarea, por tus compañeros o por cómo te sentías?"
         }
 
     if "matematica" in texto or "matematicas" in texto or "matemetixas" in texto or "mate" in texto or "aritmetica" in texto or "algebra" in texto:
