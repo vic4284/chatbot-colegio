@@ -798,6 +798,243 @@ def buscar_respuesta_dataset_por_similitud(mensaje_limpio, memoria):
         return None
 
 
+
+def interpretar_respuesta_a_pregunta_seguimiento(mensaje, memoria):
+    """
+    Interpreta respuestas cortas o contextuales del estudiante cuando el bot
+    acaba de hacer una pregunta de seguimiento desde el dataset o desde reglas.
+    Esto evita que el chatbot responda "no entendí" cuando el estudiante sí
+    está respondiendo a la pregunta anterior.
+    """
+    if not memoria:
+        return None
+
+    texto = limpiar_texto(mensaje)
+    ultima_respuesta = reparar_texto(str(memoria[0].get("respuesta_bot", "")))
+    ultima_limpia = limpiar_texto(ultima_respuesta)
+
+    if ultima_limpia.strip() == "":
+        return None
+
+    emociones = {
+        "triste": ("TRISTE", "tristeza"),
+        "tristeza": ("TRISTE", "tristeza"),
+        "solo": ("TRISTE", "soledad"),
+        "sola": ("TRISTE", "soledad"),
+        "soledad": ("TRISTE", "soledad"),
+        "ansioso": ("ANSIOSO", "ansiedad"),
+        "ansiosa": ("ANSIOSO", "ansiedad"),
+        "ansiedad": ("ANSIOSO", "ansiedad"),
+        "nervioso": ("ANSIOSO", "nervios"),
+        "nerviosa": ("ANSIOSO", "nervios"),
+        "miedo": ("ANSIOSO", "miedo"),
+        "asustado": ("ANSIOSO", "miedo"),
+        "asustada": ("ANSIOSO", "miedo"),
+        "estres": ("ESTRESADO", "estrés"),
+        "estresado": ("ESTRESADO", "estrés"),
+        "estresada": ("ESTRESADO", "estrés"),
+        "preocupado": ("ESTRESADO", "preocupación"),
+        "preocupada": ("ESTRESADO", "preocupación"),
+        "presionado": ("ESTRESADO", "presión"),
+        "presionada": ("ESTRESADO", "presión"),
+        "enojo": ("ENOJADO", "enojo"),
+        "enojado": ("ENOJADO", "enojo"),
+        "enojada": ("ENOJADO", "enojo"),
+        "rabia": ("ENOJADO", "enojo"),
+        "cansado": ("ESTRESADO", "cansancio"),
+        "cansada": ("ESTRESADO", "cansancio"),
+        "agotado": ("ESTRESADO", "cansancio"),
+        "agotada": ("ESTRESADO", "cansancio")
+    }
+
+    contextos = {
+        "colegio": "el colegio",
+        "curso": "el colegio",
+        "clase": "el colegio",
+        "profesor": "un docente",
+        "docente": "un docente",
+        "profe": "un docente",
+        "familia": "tu familia",
+        "mama": "tu familia",
+        "papa": "tu familia",
+        "hermano": "tu familia",
+        "hermana": "tu familia",
+        "amigo": "tus amigos",
+        "amiga": "tus amigos",
+        "amigos": "tus amigos",
+        "compañero": "tus compañeros",
+        "companero": "tus compañeros",
+        "compañeros": "tus compañeros",
+        "companeros": "tus compañeros",
+        "personal": "algo personal",
+        "casa": "tu casa o familia"
+    }
+
+    evaluacion = [
+        "examen", "examenes", "prueba", "pruebas", "final", "finales",
+        "defensa", "defensas", "exposicion", "exposiciones", "presentacion",
+        "presentaciones", "tribunal", "jurado", "nota", "notas", "calificacion",
+        "calificaciones", "aplazar", "reprobar", "fallar", "equivocarme",
+        "olvidarme", "no alcanzar", "salir mal", "no funcione", "funcionar"
+    ]
+
+    quiere_hablar = [
+        "quiero hablar", "prefiero hablar", "hablar", "contarte", "quiero contarte",
+        "te cuento", "quiero decirte", "necesito hablar"
+    ]
+
+    quiere_calmarse = [
+        "calmarme", "forma de calmarme", "quiero calmarme", "prefiero calmarme",
+        "respirar", "tranquilizarme", "tranquilo", "tranquila", "consejo",
+        "ayudame a calmarme", "como me calmo"
+    ]
+
+    afirmaciones = ["si", "sí", "si eso", "eso", "eso mismo", "exacto", "asi es", "claro", "puede ser"]
+    negaciones = ["no", "no se", "nose", "no lo se", "no estoy seguro", "no estoy segura"]
+
+    # 1) El bot preguntó por la emoción principal.
+    if (
+        "que emocion" in ultima_limpia or
+        "como te sientes" in ultima_limpia or
+        "te hizo sentir triste" in ultima_limpia or
+        "preocupado o presionado" in ultima_limpia or
+        "preocupada o presionada" in ultima_limpia
+    ):
+        for clave, datos in emociones.items():
+            if clave in texto:
+                emocion, nombre = datos
+                nivel = "MEDIA" if emocion in ["TRISTE", "ANSIOSO", "ESTRESADO", "ENOJADO"] else "BAJA"
+                return {
+                    "categoria": "seguimiento_emocion",
+                    "emocion": emocion,
+                    "nivel": nivel,
+                    "respuesta": f"Gracias por aclararlo. Entonces la emoción que más aparece ahora es {nombre}.\n\nEs importante reconocerlo porque así se puede buscar una mejor forma de manejarlo.\n\nRecomendación: respira despacio unos segundos, intenta ponerle nombre a lo que sientes y cuéntale esto a un adulto de confianza o al área de psicología si sigue aumentando.\n\n¿Quieres contarme qué situación provocó esa emoción?"
+                }
+
+        if texto in afirmaciones:
+            return {
+                "categoria": "seguimiento_emocion_ambigua",
+                "emocion": "NEUTRAL",
+                "nivel": "BAJA",
+                "respuesta": "Entiendo. Para ayudarte mejor, dime qué emoción se parece más a lo que sientes: tristeza, ansiedad, estrés, miedo, enojo, cansancio o preocupación."
+            }
+
+    # 2) El bot preguntó si tiene que ver con colegio, familia, amigos o algo personal.
+    if (
+        "colegio la familia amigos" in ultima_limpia or
+        "colegio familia amigos" in ultima_limpia or
+        "tiene que ver con el colegio" in ultima_limpia or
+        "familia amigos o algo personal" in ultima_limpia
+    ):
+        for clave, contexto in contextos.items():
+            if clave in texto:
+                emocion = "ESTRESADO" if contexto in ["el colegio", "un docente"] else "TRISTE"
+                return {
+                    "categoria": "seguimiento_contexto",
+                    "emocion": emocion,
+                    "nivel": "MEDIA",
+                    "respuesta": f"Entiendo, entonces esto se relaciona con {contexto}.\n\nGracias por aclararlo. Eso ayuda a comprender mejor lo que estás viviendo.\n\nRecomendación: intenta identificar qué parte de esa situación te afecta más: lo que pasó, lo que alguien dijo, la presión que sientes o el miedo a que vuelva a pasar.\n\n¿Qué fue lo que más te afectó de esa situación?"
+                }
+
+        if texto in afirmaciones or texto in negaciones:
+            return {
+                "categoria": "seguimiento_contexto_ambigua",
+                "emocion": "NEUTRAL",
+                "nivel": "BAJA",
+                "respuesta": "Está bien. Para ubicar mejor la situación, dime solo una opción: colegio, familia, amigos, compañeros, profesor o algo personal."
+            }
+
+    # 3) El bot preguntó si quiere hablar o una forma de calmarse.
+    if (
+        "quieres hablar" in ultima_limpia and "calmarte" in ultima_limpia or
+        "prefieres que primero te sugiera una forma" in ultima_limpia or
+        "forma de calmarte" in ultima_limpia
+    ):
+        if any(p in texto for p in quiere_calmarse):
+            return {
+                "categoria": "seguimiento_calmarse",
+                "emocion": "ANSIOSO",
+                "nivel": "MEDIA",
+                "respuesta": "Está bien, primero intentemos bajar un poco la intensidad.\n\nHaz esto por unos segundos:\n1. Inhala lento por la nariz.\n2. Mantén el aire un momento.\n3. Exhala despacio.\n4. Repite y mira a tu alrededor nombrando 3 cosas que ves.\n\nRecomendación: cuando te sientas un poco más tranquilo, intenta contar qué pasó en una sola frase.\n\n¿Te sientes un poco más calmado ahora?"
+            }
+
+        if any(p in texto for p in quiere_hablar):
+            return {
+                "categoria": "seguimiento_quiere_hablar",
+                "emocion": "NEUTRAL",
+                "nivel": "BAJA",
+                "respuesta": "Claro, podemos hablar paso a paso.\n\nCuéntame con calma qué ocurrió. No necesitas escribir perfecto ni responder rápido.\n\nRecomendación: empieza por decirme quién estuvo involucrado o en qué lugar pasó.\n\n¿Qué fue lo primero que ocurrió?"
+            }
+
+        if texto in afirmaciones:
+            return {
+                "categoria": "seguimiento_quiere_hablar",
+                "emocion": "NEUTRAL",
+                "nivel": "BAJA",
+                "respuesta": "Está bien, te escucho. Cuéntame un poco más de lo que pasó, paso a paso."
+            }
+
+    # 4) El bot preguntó qué pasó antes o qué quiere contar primero.
+    if (
+        "que paso antes" in ultima_limpia or
+        "antes de que decidieras escribirme" in ultima_limpia or
+        "que te gustaria contarme primero" in ultima_limpia or
+        "que fue lo primero que ocurrio" in ultima_limpia or
+        "que fue lo que mas te afecto" in ultima_limpia
+    ):
+        if any(e in texto for e in evaluacion):
+            return {
+                "categoria": "seguimiento_evaluacion",
+                "emocion": "ESTRESADO",
+                "nivel": "MEDIA",
+                "respuesta": "Ahora entiendo mejor. Lo que te preocupa está relacionado con una evaluación, prueba, defensa, exposición o calificación.\n\nEs normal sentir presión cuando algo parece muy importante.\n\nRecomendación: separa el problema en partes: qué debes preparar, qué ya tienes avanzado y qué puedes practicar primero.\n\n¿Qué es lo que más miedo te da: fallar, olvidarte, equivocarte o que te evalúen?"
+            }
+
+        for clave, contexto in contextos.items():
+            if clave in texto:
+                return {
+                    "categoria": "seguimiento_relato_contexto",
+                    "emocion": "ESTRESADO",
+                    "nivel": "MEDIA",
+                    "respuesta": f"Gracias por contármelo. Entonces lo que pasó tiene relación con {contexto}.\n\nRecomendación: intenta pensar qué fue lo que más te afectó: una palabra, una acción, una presión o una preocupación.\n\n¿Cómo te sentiste después de eso?"
+                }
+
+        if len(texto.split()) >= 3:
+            return {
+                "categoria": "seguimiento_relato_general",
+                "emocion": "NEUTRAL",
+                "nivel": "MEDIA",
+                "respuesta": "Gracias por explicarlo. Entiendo que eso pudo afectarte.\n\nRecomendación: intenta no cargarlo solo. Si esto te sigue preocupando, habla con alguien de confianza o con el área de psicología.\n\n¿Qué emoción apareció más fuerte después de eso?"
+            }
+
+    # 5) El bot preguntó por una preocupación específica en evaluaciones.
+    if (
+        "que es lo que mas te preocupa" in ultima_limpia or
+        "que parte te preocupa mas" in ultima_limpia or
+        "olvidarte equivocarte" in ultima_limpia or
+        "que te evaluen" in ultima_limpia or
+        "no alcanzar la nota" in ultima_limpia
+    ):
+        if "olvid" in texto:
+            motivo = "olvidarte lo que estudiaste"
+        elif "equivoc" in texto or "fallar" in texto or "falla" in texto:
+            motivo = "equivocarte o fallar"
+        elif "evaluen" in texto or "evaluar" in texto or "tribunal" in texto or "jurado" in texto:
+            motivo = "que te evalúen"
+        elif "nota" in texto or "calificacion" in texto or "alcanzar" in texto:
+            motivo = "no alcanzar la nota"
+        else:
+            motivo = "la presión de la evaluación"
+
+        return {
+            "categoria": "seguimiento_preocupacion_evaluacion",
+            "emocion": "ANSIOSO",
+            "nivel": "MEDIA",
+            "respuesta": f"Entiendo, entonces lo que más te preocupa es {motivo}.\n\nRecomendación: practica una parte pequeña primero. Si es una defensa o exposición, ensaya el inicio y las ideas principales. Si es una prueba, repasa los puntos más importantes.\n\nNo tienes que resolver todo de golpe; empieza por lo más urgente.\n\n¿Quieres que te sugiera una forma rápida para calmar los nervios antes de la evaluación?"
+        }
+
+    return None
+
 def mejorar_respuesta_con_contexto(respuesta, memoria, categoria_actual):
     if not memoria:
         return respuesta
@@ -876,6 +1113,13 @@ def chatbot():
 
     memoria = obtener_memoria(conexion, id_estudiante)
     respuesta_directa = detectar_respuesta_directa(mensaje)
+    respuesta_seguimiento = None
+
+    # Si no hubo una respuesta directa crítica, se revisa si el usuario
+    # está contestando la última pregunta de seguimiento que hizo el bot.
+    if respuesta_directa is None:
+        respuesta_seguimiento = interpretar_respuesta_a_pregunta_seguimiento(mensaje, memoria)
+
     fila = None
 
     if respuesta_directa is not None:
@@ -883,6 +1127,12 @@ def chatbot():
         respuesta = respuesta_directa["respuesta"]
         emocion_detectada = respuesta_directa["emocion"]
         nivel_alerta = respuesta_directa["nivel"]
+
+    elif respuesta_seguimiento is not None:
+        categoria = respuesta_seguimiento["categoria"]
+        respuesta = respuesta_seguimiento["respuesta"]
+        emocion_detectada = respuesta_seguimiento["emocion"]
+        nivel_alerta = respuesta_seguimiento["nivel"]
 
     else:
         mensaje_limpio = limpiar_texto(mensaje)
