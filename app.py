@@ -4,6 +4,7 @@ import pandas as pd
 import re
 import mysql.connector
 import os
+from sklearn.metrics.pairwise import cosine_similarity
 
 app = Flask(__name__)
 
@@ -671,6 +672,66 @@ def construir_respuesta_humana(fila):
     return texto
 
 
+def buscar_respuesta_dataset_por_similitud(mensaje_limpio, memoria):
+    """
+    Busca una respuesta directamente en el dataset_limpio.csv cuando el modelo
+    tiene baja confianza o cuando la categoría predicha no encuentra respuestas.
+    Esto permite que el chatbot siga usando el dataset y no dependa solo de reglas manuales.
+    """
+    if "pregunta" not in df.columns or df.empty:
+        return None
+
+    try:
+        preguntas = df["pregunta"].fillna("").astype(str).apply(limpiar_texto)
+
+        # Evita comparar con filas vacías
+        indices_validos = preguntas[preguntas.str.strip() != ""].index
+        if len(indices_validos) == 0:
+            return None
+
+        preguntas_validas = preguntas.loc[indices_validos]
+
+        vect_preguntas = vectorizador.transform(preguntas_validas.tolist())
+        vect_mensaje = vectorizador.transform([mensaje_limpio])
+
+        similitudes = cosine_similarity(vect_mensaje, vect_preguntas)[0]
+        mejor_posicion = similitudes.argmax()
+        mejor_similitud = float(similitudes[mejor_posicion])
+
+        # Umbral bajo/moderado para permitir que el dataset apoye al modelo
+        if mejor_similitud < 0.22:
+            return None
+
+        indice_real = indices_validos[mejor_posicion]
+        fila = df.loc[indice_real]
+
+        categoria = str(fila["categoria"]) if "categoria" in df.columns else "dataset_respuesta"
+        respuesta = construir_respuesta_humana(fila)
+
+        # Evitar repetir exactamente la misma respuesta de la memoria
+        respuestas_anteriores = [str(item["respuesta_bot"]) for item in memoria]
+        if respuesta in respuestas_anteriores and "categoria" in df.columns:
+            respuestas_categoria = df[df["categoria"] == categoria]
+            if not respuestas_categoria.empty:
+                fila = elegir_respuesta_no_repetida(respuestas_categoria, memoria)
+                respuesta = construir_respuesta_humana(fila)
+
+        nivel_alerta_csv = fila["nivel_alerta"] if "nivel_alerta" in df.columns else "BAJA"
+        emocion_detectada, nivel_alerta = obtener_emocion_y_nivel(categoria, nivel_alerta_csv, fila)
+
+        return {
+            "categoria": categoria,
+            "respuesta": respuesta,
+            "emocion": emocion_detectada,
+            "nivel": nivel_alerta,
+            "fila": fila,
+            "similitud": mejor_similitud
+        }
+
+    except:
+        return None
+
+
 def mejorar_respuesta_con_contexto(respuesta, memoria, categoria_actual):
     if not memoria:
         return respuesta
@@ -768,6 +829,48 @@ def chatbot():
             categoria = modelo.classes_[indice]
 
             if confianza < 0.35:
+                # Primero intentamos responder usando el dataset_limpio.csv por similitud.
+                # Si el dataset encuentra algo parecido, se usa esa respuesta.
+                respuesta_dataset = buscar_respuesta_dataset_por_similitud(mensaje_limpio, memoria)
+
+                if respuesta_dataset is not None:
+                    categoria = respuesta_dataset["categoria"]
+                    respuesta = respuesta_dataset["respuesta"]
+                    emocion_detectada = respuesta_dataset["emocion"]
+                    nivel_alerta = respuesta_dataset["nivel"]
+
+                    respuesta = mejorar_respuesta_con_contexto(
+                        respuesta,
+                        memoria,
+                        categoria
+                    )
+
+                    registrado = registrar_analisis(conexion, id_estudiante, emocion_detectada, nivel_alerta)
+
+                    guardar_memoria(
+                        conexion,
+                        id_estudiante,
+                        mensaje,
+                        respuesta,
+                        categoria,
+                        emocion_detectada,
+                        nivel_alerta
+                    )
+
+                    conexion.close()
+
+                    return jsonify({
+                        "success": True,
+                        "mensaje_usuario": mensaje,
+                        "respuesta": respuesta,
+                        "categoria": categoria,
+                        "emocion_detectada": emocion_detectada,
+                        "nivel_alerta": nivel_alerta,
+                        "id_usuario": id_usuario,
+                        "id_estudiante": id_estudiante,
+                        "registrado": registrado
+                    })
+
                 categoria = "malestar_ambiguo"
                 respuesta = "No entendí completamente tu mensaje, pero puedo seguir la conversación si me das una pista.\n\nDime si se relaciona con:\n• una nota\n• una tarea\n• un profesor\n• un compañero\n• una emoción\n• una materia\n\nPor ejemplo: 'fue por una nota', 'fue por mi profesor' o 'me siento triste por eso'."
                 emocion_detectada = "NEUTRAL"
@@ -796,18 +899,28 @@ def chatbot():
         respuestas_categoria = df[df["categoria"] == categoria]
 
         if respuestas_categoria.empty:
-            respuesta = "No entendí bien tu mensaje. Puedes explicármelo con otras palabras.\n\nRecomendación: dime si buscas apoyo emocional, ayuda con estudios o solo conversar.\n\n¿Puedes explicarme un poco más?"
-            nivel_alerta_csv = "BAJA"
+            # Si la categoría predicha no existe en el dataset, intentamos buscar por similitud.
+            respuesta_dataset = buscar_respuesta_dataset_por_similitud(mensaje_limpio, memoria)
+
+            if respuesta_dataset is not None:
+                categoria = respuesta_dataset["categoria"]
+                respuesta = respuesta_dataset["respuesta"]
+                emocion_detectada = respuesta_dataset["emocion"]
+                nivel_alerta = respuesta_dataset["nivel"]
+            else:
+                respuesta = "No entendí bien tu mensaje. Puedes explicármelo con otras palabras.\n\nRecomendación: dime si buscas apoyo emocional, ayuda con estudios o solo conversar.\n\n¿Puedes explicarme un poco más?"
+                emocion_detectada = "NEUTRAL"
+                nivel_alerta = "BAJA"
         else:
             fila = elegir_respuesta_no_repetida(respuestas_categoria, memoria)
             respuesta = construir_respuesta_humana(fila)
             nivel_alerta_csv = fila["nivel_alerta"] if "nivel_alerta" in df.columns else "BAJA"
 
-        emocion_detectada, nivel_alerta = obtener_emocion_y_nivel(
-            categoria,
-            nivel_alerta_csv,
-            fila
-        )
+            emocion_detectada, nivel_alerta = obtener_emocion_y_nivel(
+                categoria,
+                nivel_alerta_csv,
+                fila
+            )
 
         respuesta = mejorar_respuesta_con_contexto(
             respuesta,
