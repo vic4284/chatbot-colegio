@@ -4,19 +4,32 @@ import pandas as pd
 import re
 import mysql.connector
 import random
-
 import os
 
 app = Flask(__name__)
 
 modelo = joblib.load("modelo_chatbot.pkl")
 vectorizador = joblib.load("vectorizador.pkl")
-df = pd.read_csv("dataset_limpio.csv")
+df = pd.read_csv("dataset_limpio.csv", encoding="utf-8-sig")
+
+
+def reparar_texto(texto):
+    texto = str(texto)
+    if "Ã" in texto or "Â" in texto:
+        try:
+            texto = texto.encode("latin1").decode("utf-8")
+        except:
+            pass
+    return texto
 
 
 def limpiar_texto(texto):
+    texto = reparar_texto(texto)
     texto = str(texto).lower().strip()
-    texto = re.sub(r'[^\w\s]', '', texto)
+    texto = texto.replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u")
+    texto = texto.replace("ñ", "n")
+    texto = re.sub(r'[^\w\s+\-*/]', ' ', texto)
+    texto = re.sub(r'\s+', ' ', texto)
     return texto
 
 
@@ -49,7 +62,7 @@ def obtener_id_estudiante(conexion, id_usuario):
 def normalizar_nivel(nivel):
     nivel = limpiar_texto(nivel)
 
-    if nivel in ["alto", "alta", "critico", "crítico", "critica", "crítica"]:
+    if nivel in ["alto", "alta", "critico", "critica"]:
         return "ALTA"
     if nivel in ["medio", "media"]:
         return "MEDIA"
@@ -64,7 +77,7 @@ def obtener_emocion_y_nivel(categoria, nivel_csv, fila=None):
     nivel = normalizar_nivel(nivel_csv)
 
     if fila is not None and "emocion_detectada" in df.columns:
-        emocion_csv = str(fila["emocion_detectada"]).strip().upper()
+        emocion_csv = reparar_texto(str(fila["emocion_detectada"])).strip().upper()
         if emocion_csv != "" and emocion_csv != "NAN":
             return emocion_csv, nivel
 
@@ -187,13 +200,67 @@ def guardar_memoria(conexion, id_estudiante, mensaje_usuario, respuesta_bot, cat
     cursor.close()
 
 
+def detectar_operacion_matematica(texto):
+    texto = limpiar_texto(texto)
+
+    patron = r'(\d+)\s*([\+\-\*/])\s*(\d+)'
+    coincidencia = re.search(patron, texto)
+
+    if not coincidencia:
+        return None
+
+    num1 = int(coincidencia.group(1))
+    operador = coincidencia.group(2)
+    num2 = int(coincidencia.group(3))
+
+    try:
+        if operador == "+":
+            resultado = num1 + num2
+        elif operador == "-":
+            resultado = num1 - num2
+        elif operador == "*":
+            resultado = num1 * num2
+        elif operador == "/":
+            if num2 == 0:
+                return "No se puede dividir entre cero."
+            resultado = num1 / num2
+        else:
+            return None
+
+        if resultado == int(resultado):
+            resultado = int(resultado)
+
+        return f"{num1} {operador} {num2} = {resultado}"
+    except:
+        return None
+
+
 def detectar_respuesta_directa(mensaje):
     texto = limpiar_texto(mensaje)
 
+    operacion = detectar_operacion_matematica(texto)
+
+    if operacion is not None:
+        if "profesor" in texto and ("molesta" in texto or "molestar" in texto or "trata mal" in texto):
+            return {
+                "categoria": "matematicas_y_problema_docente",
+                "emocion": "ESTRESADO",
+                "nivel": "MEDIA",
+                "respuesta": f"{operacion}\n\nTambién noté que mencionaste que tu profesor te molesta. Si eso te incomoda o te hace sentir mal, es importante que no lo guardes solo.\n\nRecomendación: habla con un adulto de confianza, tu tutor, tus padres o el área de psicología del colegio para que puedan orientarte.\n\n¿Quieres que te ayude con más ejercicios de matemáticas o quieres contarme qué pasó con tu profesor?"
+            }
+
+        return {
+            "categoria": "matematicas_basicas",
+            "emocion": "NEUTRAL",
+            "nivel": "BAJA",
+            "respuesta": f"{operacion}\n\nRecomendación: si tienes más ejercicios, puedes escribirme la operación y te ayudo paso a paso.\n\n¿Quieres resolver otro ejercicio?"
+        }
+
     riesgo = [
-        "me quiero hacer daño", "quiero hacerme daño", "no quiero vivir",
+        "me quiero hacer dano", "quiero hacerme dano", "no quiero vivir",
         "quiero desaparecer", "quiero morir", "ya no puedo mas",
-        "quisiera no existir", "me voy a lastimar"
+        "quisiera no existir", "me voy a lastimar", "me quiero suicidar",
+        "quiero suicidarme"
     ]
 
     for palabra in riesgo:
@@ -202,7 +269,86 @@ def detectar_respuesta_directa(mensaje):
                 "categoria": "emergencia_riesgo",
                 "emocion": "ANSIOSO",
                 "nivel": "ALTA",
-                "respuesta": "Lo que me estás diciendo es importante y necesita apoyo inmediato.\n\nRecomendación: busca ahora mismo a un adulto de confianza, un familiar, un profesor o el área de psicología. No te quedes solo en este momento.\n\n¿Estás en un lugar seguro ahora?"
+                "respuesta": "Lo que me estás diciendo es muy importante y necesita apoyo inmediato.\n\nRecomendación: busca ahora mismo a un adulto de confianza, un familiar, un profesor o el área de psicología. No te quedes solo en este momento.\n\n¿Estás en un lugar seguro ahora?"
+            }
+
+    saludos = [
+        "hola", "ola", "holaa", "holaaa", "holi", "hila", "buenas",
+        "buenos dias", "buenas tardes", "buenas noches", "hey", "hello"
+    ]
+
+    if texto in saludos:
+        return {
+            "categoria": "saludo",
+            "emocion": "NEUTRAL",
+            "nivel": "BAJA",
+            "respuesta": "Hola 😊 Estoy aquí para ayudarte.\n\nPuedes contarme si necesitas apoyo emocional, ayuda con alguna materia o simplemente conversar.\n\n¿En qué te puedo ayudar hoy?"
+        }
+
+    preguntas_estado_bot = [
+        "como estas", "como estas hoy", "que tal", "como te va",
+        "estas bien", "como andas"
+    ]
+
+    if texto in preguntas_estado_bot:
+        return {
+            "categoria": "saludo_estado",
+            "emocion": "NEUTRAL",
+            "nivel": "BAJA",
+            "respuesta": "Estoy aquí para escucharte y ayudarte 😊\n\nPuedes hablar conmigo sobre tus materias, tareas, emociones o alguna situación que estés viviendo en el colegio.\n\n¿Cómo te sientes tú hoy?"
+        }
+
+    if "profesor" in texto and ("molesta" in texto or "molestar" in texto or "trata mal" in texto or "me grita" in texto):
+        return {
+            "categoria": "problema_docente",
+            "emocion": "ESTRESADO",
+            "nivel": "MEDIA",
+            "respuesta": "Lamento que estés pasando por eso. Si un profesor te molesta o te hace sentir incómodo, es importante tomarlo con seriedad.\n\nRecomendación: intenta contarle la situación a un adulto de confianza, a tus padres, tutor o al área de psicología del colegio. No es bueno guardar eso solo.\n\n¿Quieres contarme qué ocurrió exactamente?"
+        }
+
+    if "matematica" in texto or "matematicas" in texto or "matemetixas" in texto or "mate" in texto:
+        if "tip" in texto or "mejorar" in texto or "aprender" in texto or "ayuda" in texto:
+            return {
+                "categoria": "apoyo_matematicas",
+                "emocion": "NEUTRAL",
+                "nivel": "BAJA",
+                "respuesta": "Claro 😊 Para mejorar en matemáticas te recomiendo practicar poco a poco y no memorizar sin entender.\n\nRecomendación:\n• repasa operaciones básicas\n• practica 15 a 20 minutos al día\n• resuelve ejercicios paso a paso\n• revisa tus errores sin frustrarte\n• pregunta cuando no entiendas un procedimiento\n\n¿Quieres que practiquemos con sumas, restas, multiplicaciones, divisiones o álgebra?"
+            }
+
+    materias = {
+        "fisica": "Física estudia fenómenos como fuerza, movimiento, energía, calor y electricidad.",
+        "quimica": "Química estudia la materia, sus cambios, mezclas, sustancias y reacciones.",
+        "biologia": "Biología estudia los seres vivos, las células, el cuerpo humano, plantas, animales y ecosistemas.",
+        "historia": "Historia estudia hechos importantes del pasado para comprender mejor el presente.",
+        "geografia": "Geografía estudia la Tierra, mapas, regiones, clima, población y recursos naturales.",
+        "lenguaje": "Lenguaje ayuda a mejorar lectura, escritura, comprensión, ortografía y comunicación.",
+        "literatura": "Literatura estudia textos, cuentos, poemas, novelas y formas de expresión escrita.",
+        "ingles": "Inglés ayuda a comunicarte en otro idioma mediante vocabulario, lectura, escritura y pronunciación."
+    }
+
+    for materia, descripcion in materias.items():
+        if materia in texto:
+            return {
+                "categoria": f"apoyo_{materia}",
+                "emocion": "NEUTRAL",
+                "nivel": "BAJA",
+                "respuesta": f"{descripcion}\n\nRecomendación: dime qué tema específico no entiendes y te lo explico de forma sencilla con ejemplos.\n\n¿Sobre qué tema de {materia} necesitas ayuda?"
+            }
+
+    academico = [
+        "dame tips", "tips para aprender", "aprender mejor", "estudiar mejor",
+        "como estudio", "como puedo estudiar", "tarea", "examen", "exponer",
+        "resumen", "lectura", "ortografia", "no entiendo", "explicame",
+        "ayudame con mi tarea"
+    ]
+
+    for palabra in academico:
+        if palabra in texto:
+            return {
+                "categoria": "apoyo_academico",
+                "emocion": "NEUTRAL",
+                "nivel": "BAJA",
+                "respuesta": "Claro, puedo ayudarte con temas del colegio.\n\nRecomendación: dime la materia y el tema exacto. Por ejemplo: matemáticas, física, química, biología, historia, geografía, lenguaje o inglés.\n\n¿Qué materia quieres practicar?"
             }
 
     negacion_malestar = [
@@ -217,7 +363,7 @@ def detectar_respuesta_directa(mensaje):
                 "categoria": "estado_positivo",
                 "emocion": "FELIZ",
                 "nivel": "BAJA",
-                "respuesta": "Perfecto, gracias por aclararlo. Entonces dejamos de lado la parte emocional.\n\nRecomendación: dime en qué necesitas ayuda ahora: estudio, tareas, organización, una materia o algún consejo práctico.\n\n¿Sobre qué tema quieres conversar?"
+                "respuesta": "Perfecto, gracias por aclararlo 😊\n\nRecomendación: si no hay un problema emocional, puedo ayudarte con estudios, tareas, organización o alguna materia.\n\n¿Sobre qué tema quieres conversar?"
             }
 
     positivo = [
@@ -231,35 +377,8 @@ def detectar_respuesta_directa(mensaje):
                 "categoria": "estado_positivo",
                 "emocion": "FELIZ",
                 "nivel": "BAJA",
-                "respuesta": "Me alegra saber eso. También es bueno reconocer cuando algo va bien.\n\nRecomendación: aprovecha ese ánimo para avanzar algo pequeño o disfrutar el momento sin presionarte.\n\n¿Qué pasó para que te sientas así?"
+                "respuesta": "Me alegra saber eso 😊 También es bueno reconocer cuando algo va bien.\n\nRecomendación: aprovecha ese ánimo para avanzar algo pequeño o disfrutar el momento sin presionarte.\n\n¿Qué pasó para que te sientas así?"
             }
-
-    academico = [
-        "dame tips", "tips para aprender", "aprender mejor", "estudiar mejor",
-        "como estudio", "cómo estudio", "lengua", "matematica", "matemática",
-        "fisica", "física", "quimica", "química", "historia", "biologia",
-        "biología", "tarea", "examen", "exponer", "resumen", "lectura",
-        "ortografia", "ortografía"
-    ]
-
-    for palabra in academico:
-        if palabra in texto:
-            return {
-                "categoria": "apoyo_academico",
-                "emocion": "NEUTRAL",
-                "nivel": "BAJA",
-                "respuesta": "Claro, puedo ayudarte con eso.\n\nRecomendación: para aprender mejor, divide el tema en partes pequeñas, lee una parte, subraya ideas principales y luego explica con tus propias palabras lo que entendiste. Si es Lengua, practica lectura, resumen, ortografía y redacción con ejemplos cortos.\n\n¿Quieres tips para estudiar, leer mejor, escribir mejor o prepararte para un examen?"
-            }
-
-    saludo = ["hola", "buenos dias", "buenas tardes", "buenas noches", "hey"]
-
-    if texto in saludo:
-        return {
-            "categoria": "saludo",
-            "emocion": "NEUTRAL",
-            "nivel": "BAJA",
-            "respuesta": "Hola, aquí estoy para ayudarte.\n\nPuedes contarme si necesitas apoyo emocional, ayuda con estudios o simplemente conversar un momento.\n\n¿En qué te puedo ayudar hoy?"
-        }
 
     gracias = ["gracias", "muchas gracias", "ok gracias", "te agradezco"]
 
@@ -268,7 +387,7 @@ def detectar_respuesta_directa(mensaje):
             "categoria": "agradecimiento",
             "emocion": "NEUTRAL",
             "nivel": "BAJA",
-            "respuesta": "De nada. Me alegra poder ayudarte.\n\nRecomendación: si algo vuelve a preocuparte, puedes contarlo con calma y buscamos una solución paso a paso.\n\n¿Quieres hablar de algo más?"
+            "respuesta": "De nada 😊 Me alegra poder ayudarte.\n\nRecomendación: si algo vuelve a preocuparte o tienes dudas de alguna materia, puedes escribirme.\n\n¿Quieres hablar de algo más?"
         }
 
     despedida = ["adios", "chau", "hasta luego", "nos vemos", "me voy"]
@@ -283,7 +402,7 @@ def detectar_respuesta_directa(mensaje):
 
     ambiguo = [
         "me siento mal", "estoy mal", "me siento raro", "me siento rara",
-        "no se que me pasa", "no sé que me pasa", "no me siento bien"
+        "no se que me pasa", "no me siento bien"
     ]
 
     for palabra in ambiguo:
@@ -304,17 +423,23 @@ def corregir_categoria_con_memoria(mensaje, categoria_predicha, memoria):
     if not memoria:
         return categoria_predicha
 
+    categorias_no_continuar = [
+        "saludo", "saludo_estado", "despedida", "agradecimiento",
+        "estado_positivo", "apoyo_academico", "apoyo_matematicas",
+        "matematicas_basicas"
+    ]
+
     ultima_categoria = str(memoria[0]["categoria"])
 
     palabras_continuacion = [
         "si", "sí", "puede ser", "tal vez", "eso", "eso mismo",
         "con un psicologo", "con psicologo", "con psicologia",
-        "con psicología", "con alguien", "claro", "ok"
+        "con alguien", "claro", "ok"
     ]
 
     for palabra in palabras_continuacion:
-        if palabra in texto:
-            if ultima_categoria not in ["saludo", "despedida", "agradecimiento", "estado_positivo", "apoyo_academico"]:
+        if palabra == texto:
+            if ultima_categoria not in categorias_no_continuar:
                 return ultima_categoria
 
     return categoria_predicha
@@ -336,13 +461,13 @@ def elegir_respuesta_no_repetida(respuestas_categoria, memoria):
 
 def construir_respuesta_humana(fila):
     if "respuesta_final" in df.columns:
-        texto_final = str(fila["respuesta_final"])
+        texto_final = reparar_texto(str(fila["respuesta_final"]))
         if texto_final.strip() != "" and texto_final.lower() != "nan":
             return texto_final
 
-    respuesta = str(fila["respuesta"]) if "respuesta" in df.columns else ""
-    recomendacion = str(fila["recomendacion"]) if "recomendacion" in df.columns else ""
-    pregunta = str(fila["pregunta_seguimiento"]) if "pregunta_seguimiento" in df.columns else ""
+    respuesta = reparar_texto(str(fila["respuesta"])) if "respuesta" in df.columns else ""
+    recomendacion = reparar_texto(str(fila["recomendacion"])) if "recomendacion" in df.columns else ""
+    pregunta = reparar_texto(str(fila["pregunta_seguimiento"])) if "pregunta_seguimiento" in df.columns else ""
 
     texto = respuesta
 
@@ -363,8 +488,9 @@ def mejorar_respuesta_con_contexto(respuesta, memoria, categoria_actual):
     ultima_emocion = str(memoria[0]["emocion"])
 
     categorias_no_emocionales = [
-        "saludo", "despedida", "agradecimiento",
-        "estado_positivo", "apoyo_academico"
+        "saludo", "saludo_estado", "despedida", "agradecimiento",
+        "estado_positivo", "apoyo_academico", "apoyo_matematicas",
+        "matematicas_basicas"
     ]
 
     if categoria_actual in categorias_no_emocionales:
@@ -377,6 +503,15 @@ def mejorar_respuesta_con_contexto(respuesta, memoria, categoria_actual):
         return "Tomando en cuenta lo que me contaste antes, " + respuesta.lower()
 
     return respuesta
+
+
+@app.route("/", methods=["GET"])
+def inicio():
+    return jsonify({
+        "success": True,
+        "message": "Chatbot escolar activo",
+        "endpoint": "/chatbot"
+    })
 
 
 @app.route("/chatbot", methods=["POST"])
@@ -419,9 +554,7 @@ def chatbot():
         })
 
     memoria = obtener_memoria(conexion, id_estudiante)
-
     respuesta_directa = detectar_respuesta_directa(mensaje)
-
     fila = None
 
     if respuesta_directa is not None:
@@ -433,7 +566,36 @@ def chatbot():
     else:
         mensaje_limpio = limpiar_texto(mensaje)
         mensaje_vect = vectorizador.transform([mensaje_limpio])
-        categoria = modelo.predict(mensaje_vect)[0]
+
+        if hasattr(modelo, "predict_proba"):
+            probabilidades = modelo.predict_proba(mensaje_vect)[0]
+            indice = probabilidades.argmax()
+            confianza = probabilidades[indice]
+            categoria = modelo.classes_[indice]
+
+            if confianza < 0.35:
+                categoria = "malestar_ambiguo"
+                respuesta = "No entendí bien tu mensaje. Para ayudarte mejor, dime si se relaciona con una materia del colegio, una emoción o un problema con alguien.\n\nRecomendación: puedes escribir algo como: 'necesito ayuda en matemáticas', 'me siento triste' o 'tengo un problema con un compañero'.\n\n¿A qué tema te refieres?"
+                emocion_detectada = "NEUTRAL"
+                nivel_alerta = "BAJA"
+
+                guardar_memoria(conexion, id_estudiante, mensaje, respuesta, categoria, emocion_detectada, nivel_alerta)
+                registrado = registrar_analisis(conexion, id_estudiante, emocion_detectada, nivel_alerta)
+                conexion.close()
+
+                return jsonify({
+                    "success": True,
+                    "mensaje_usuario": mensaje,
+                    "respuesta": respuesta,
+                    "categoria": categoria,
+                    "emocion_detectada": emocion_detectada,
+                    "nivel_alerta": nivel_alerta,
+                    "id_usuario": id_usuario,
+                    "id_estudiante": id_estudiante,
+                    "registrado": registrado
+                })
+        else:
+            categoria = modelo.predict(mensaje_vect)[0]
 
         categoria = corregir_categoria_con_memoria(mensaje, categoria, memoria)
 
