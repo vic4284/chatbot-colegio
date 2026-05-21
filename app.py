@@ -389,6 +389,155 @@ def detectar_respuesta_directa(mensaje):
             "respuesta": "Estoy aquí para escucharte y ayudarte 😊\n\nPuedes hablar conmigo sobre tus materias, tareas, emociones o alguna situación que estés viviendo en el colegio.\n\n¿Cómo te sientes tú hoy?"
         }
 
+
+    # DETECCIÓN DIRECTA DE EMOCIONES CLARAS
+    # Esto debe ir antes del seguimiento de preguntas para que frases como
+    # "me siento estresado", "estoy triste" o "tengo ansiedad" no se tomen
+    # solo como respuesta a la pregunta anterior del bot.
+    negaciones_emocionales = [
+        "no estoy triste", "no me siento triste", "no estoy mal", "no me siento mal",
+        "no estoy estresado", "no estoy estresada", "no me siento estresado",
+        "no me siento estresada", "no tengo ansiedad", "no estoy ansioso",
+        "no estoy ansiosa", "no tengo miedo", "no estoy preocupado",
+        "no estoy preocupada", "no estoy solo", "no estoy sola",
+        "estoy bien", "me siento bien", "estoy normal", "todo bien"
+    ]
+
+    for frase in negaciones_emocionales:
+        if frase in texto:
+            return {
+                "categoria": "estado_positivo",
+                "emocion": "FELIZ",
+                "nivel": "BAJA",
+                "respuesta": "Perfecto, gracias por aclararlo 😊\n\nMe alegra saber que no estás pasando por ese malestar en este momento.\n\nRecomendación: si más adelante necesitas hablar de una emoción, una preocupación o alguna situación del colegio, puedes escribirme.\n\n¿Quieres conversar de algo más?"
+            }
+
+    emociones_directas = [
+        {
+            "categoria": "estres_emocional",
+            "emocion": "ESTRESADO",
+            "nivel": "MEDIA",
+            "claves": [
+                "me siento estresado", "me siento estresada", "estoy estresado",
+                "estoy estresada", "tengo estres", "siento estres",
+                "ando estresado", "ando estresada", "me siento presionado",
+                "me siento presionada", "estoy presionado", "estoy presionada",
+                "siento mucha presion", "tengo mucha presion", "me siento saturado",
+                "me siento saturada", "estoy saturado", "estoy saturada"
+            ],
+            "respuesta": "Entiendo, parece que estás sintiendo estrés.\n\nEl estrés puede aparecer cuando sientes presión, demasiadas responsabilidades o preocupación acumulada.\n\nRecomendación: respira despacio, identifica qué situación te está causando más presión y trata de dividir el problema en partes pequeñas. Si el estrés sigue aumentando, habla con un adulto de confianza o con el área de psicología.\n\n¿Qué situación está causando ese estrés?"
+        },
+        {
+            "categoria": "ansiedad_emocional",
+            "emocion": "ANSIOSO",
+            "nivel": "MEDIA",
+            "claves": [
+                "me siento ansioso", "me siento ansiosa", "estoy ansioso",
+                "estoy ansiosa", "tengo ansiedad", "siento ansiedad",
+                "me da ansiedad", "me siento nervioso", "me siento nerviosa",
+                "estoy nervioso", "estoy nerviosa", "me pongo nervioso",
+                "me pongo nerviosa", "me tiembla", "no puedo estar tranquilo",
+                "no puedo estar tranquila", "siento nervios"
+            ],
+            "respuesta": "Entiendo, eso suena a ansiedad o nervios intensos.\n\nLa ansiedad puede sentirse como preocupación, tensión, miedo o sensación de que algo malo puede pasar.\n\nRecomendación: intenta respirar lento, mira a tu alrededor y nombra tres cosas que ves. Eso puede ayudarte a volver al momento presente.\n\n¿Qué es lo que más te está preocupando ahora?"
+        },
+        {
+            "categoria": "tristeza_emocional",
+            "emocion": "TRISTE",
+            "nivel": "MEDIA",
+            "claves": [
+                "me siento triste", "estoy triste", "siento tristeza",
+                "me siento mal emocionalmente", "estoy bajoneado", "estoy bajoneada",
+                "me siento decaido", "me siento decaida", "estoy decaido",
+                "estoy decaida", "no tengo ganas de nada", "ya no tengo ganas",
+                "me siento apagado", "me siento apagada"
+            ],
+            "respuesta": "Siento que estés pasando por tristeza.\n\nReconocerlo ya es un paso importante. A veces la tristeza aparece cuando algo nos duele, nos preocupa o nos hace sentir solos.\n\nRecomendación: no te guardes todo. Habla con alguien de confianza o con el área de psicología si esta tristeza continúa.\n\n¿Quieres contarme qué pasó antes de sentirte así?"
+        },
+        {
+            "categoria": "soledad_emocional",
+            "emocion": "TRISTE",
+            "nivel": "MEDIA",
+            "claves": [
+                "me siento solo", "me siento sola", "estoy solo",
+                "estoy sola", "siento soledad", "nadie me entiende",
+                "siento que nadie me entiende", "no tengo con quien hablar",
+                "me siento abandonado", "me siento abandonada"
+            ],
+            "respuesta": "Lamento que te sientas así. Sentirse solo puede ser muy pesado.\n\nAunque ahora parezca difícil, no tienes que cargar todo en silencio.\n\nRecomendación: busca a una persona de confianza, un familiar, tutor o psicología del colegio para hablar de esto con calma.\n\n¿Esta soledad tiene que ver con tu familia, tus compañeros o algo personal?"
+        },
+        {
+            "categoria": "miedo_emocional",
+            "emocion": "ANSIOSO",
+            "nivel": "MEDIA",
+            "claves": [
+                "tengo miedo", "me da miedo", "siento miedo",
+                "estoy asustado", "estoy asustada", "me siento asustado",
+                "me siento asustada", "tengo temor", "me preocupa mucho",
+                "siento temor"
+            ],
+            "respuesta": "Entiendo, sentir miedo puede ser muy incómodo y agotador.\n\nEl miedo aparece cuando algo se siente amenazante o incierto.\n\nRecomendación: intenta identificar qué te da miedo exactamente y busca apoyo de un adulto de confianza si sientes que no puedes manejarlo solo.\n\n¿Qué es lo que te está dando miedo?"
+        },
+        {
+            "categoria": "enojo_emocional",
+            "emocion": "ENOJADO",
+            "nivel": "MEDIA",
+            "claves": [
+                "estoy enojado", "estoy enojada", "me siento enojado",
+                "me siento enojada", "tengo rabia", "siento rabia",
+                "me da rabia", "estoy molesto", "estoy molesta",
+                "me siento molesto", "me siento molesta", "estoy frustrado",
+                "estoy frustrada", "me siento frustrado", "me siento frustrada"
+            ],
+            "respuesta": "Entiendo, parece que estás sintiendo enojo o frustración.\n\nEl enojo puede aparecer cuando algo se siente injusto, pesado o fuera de control.\n\nRecomendación: antes de responder o actuar, intenta respirar y tomar distancia unos minutos para pensar mejor.\n\n¿Qué fue lo que provocó ese enojo?"
+        },
+        {
+            "categoria": "cansancio_emocional",
+            "emocion": "ESTRESADO",
+            "nivel": "MEDIA",
+            "claves": [
+                "me siento cansado", "me siento cansada", "estoy cansado",
+                "estoy cansada", "me siento agotado", "me siento agotada",
+                "estoy agotado", "estoy agotada", "no tengo energia",
+                "me siento sin energia", "estoy quemado", "estoy quemada"
+            ],
+            "respuesta": "Entiendo, parece que estás sintiendo cansancio o agotamiento.\n\nA veces el cansancio no es solo físico, también puede ser emocional cuando hay muchas preocupaciones acumuladas.\n\nRecomendación: descansa unos minutos, toma agua y trata de ordenar lo más urgente. Si este cansancio continúa, sería bueno hablarlo con alguien de confianza.\n\n¿Este cansancio viene por problemas, presión o falta de descanso?"
+        },
+        {
+            "categoria": "preocupacion_emocional",
+            "emocion": "ESTRESADO",
+            "nivel": "MEDIA",
+            "claves": [
+                "estoy preocupado", "estoy preocupada", "me siento preocupado",
+                "me siento preocupada", "me preocupa", "tengo preocupacion",
+                "tengo preocupaciones", "no dejo de pensar", "pienso mucho en eso"
+            ],
+            "respuesta": "Entiendo, parece que estás preocupado.\n\nLa preocupación aparece cuando algo importa mucho o cuando no sabemos qué va a pasar.\n\nRecomendación: intenta escribir cuál es el problema principal y qué cosas sí puedes controlar ahora.\n\n¿Qué es lo que más te preocupa?"
+        },
+        {
+            "categoria": "estado_positivo",
+            "emocion": "FELIZ",
+            "nivel": "BAJA",
+            "claves": [
+                "me siento feliz", "estoy feliz", "estoy contento",
+                "estoy contenta", "me siento contento", "me siento contenta",
+                "estoy alegre", "me siento alegre", "me siento tranquilo",
+                "me siento tranquila", "estoy tranquilo", "estoy tranquila"
+            ],
+            "respuesta": "Me alegra saber eso 😊\n\nTambién es importante reconocer cuando te sientes bien o tranquilo.\n\nRecomendación: aprovecha ese estado para avanzar con calma, descansar o compartirlo con alguien de confianza.\n\n¿Qué hizo que te sintieras así?"
+        }
+    ]
+
+    for item in emociones_directas:
+        for clave in item["claves"]:
+            if clave in texto:
+                return {
+                    "categoria": item["categoria"],
+                    "emocion": item["emocion"],
+                    "nivel": item["nivel"],
+                    "respuesta": item["respuesta"]
+                }
+
     # ANSIEDAD, NERVIOS Y ESTRÉS POR EVALUACIONES
     palabras_nervios = [
         "nervioso", "nerviosa", "ansioso", "ansiosa", "estresado", "estresada",
