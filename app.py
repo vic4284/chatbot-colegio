@@ -311,6 +311,33 @@ def detectar_respuesta_directa(mensaje):
             "respuesta": "Hola 😊 Estoy aquí para ayudarte.\n\nPuedes contarme si necesitas apoyo emocional, ayuda con alguna materia o simplemente conversar.\n\n¿En qué te puedo ayudar hoy?"
         }
 
+    # CUANDO EL USUARIO DICE QUE NO NECESITA NADA
+    sin_ayuda = [
+        "no en nada",
+        "en nada",
+        "nada",
+        "no necesito nada",
+        "no necesito ayuda",
+        "no necesito ayuda en nada",
+        "no quiero ayuda",
+        "no quiero nada",
+        "por ahora nada",
+        "solo queria saludar",
+        "solo saludaba",
+        "solo queria decir hola",
+        "solo entre a saludar",
+        "ninguna cosa",
+        "ningun problema"
+    ]
+
+    if texto in sin_ayuda:
+        return {
+            "categoria": "sin_necesidad_ayuda",
+            "emocion": "NEUTRAL",
+            "nivel": "BAJA",
+            "respuesta": "Está bien 😊 No hay problema.\n\nCuando necesites ayuda con una materia, una tarea o quieras hablar sobre cómo te sientes, puedes escribirme.\n\nEstoy aquí para apoyarte."
+        }
+
     preguntas_estado_bot = [
         "como estas", "como estas hoy", "que tal", "como te va",
         "estas bien", "como andas"
