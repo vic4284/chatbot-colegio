@@ -3,7 +3,6 @@ import joblib
 import pandas as pd
 import re
 import mysql.connector
-import random
 import os
 
 app = Flask(__name__)
@@ -28,9 +27,10 @@ def limpiar_texto(texto):
     texto = str(texto).lower().strip()
     texto = texto.replace("á", "a").replace("é", "e").replace("í", "i").replace("ó", "o").replace("ú", "u")
     texto = texto.replace("ñ", "n")
-    texto = re.sub(r'[^\w\s+\-*/]', ' ', texto)
+    texto = texto.replace("×", "x")
+    texto = re.sub(r'[^\w\s+\-*/x]', ' ', texto)
     texto = re.sub(r'\s+', ' ', texto)
-    return texto
+    return texto.strip()
 
 
 def conectar_bd():
@@ -203,34 +203,55 @@ def guardar_memoria(conexion, id_estudiante, mensaje_usuario, respuesta_bot, cat
 def detectar_operacion_matematica(texto):
     texto = limpiar_texto(texto)
 
-    patron = r'(\d+)\s*([\+\-\*/])\s*(\d+)'
+    texto = texto.replace("cuanto es", "")
+    texto = texto.replace("cuanto seria", "")
+    texto = texto.replace("resultado de", "")
+    texto = texto.replace("resuelve", "")
+    texto = texto.replace("mas", "+")
+    texto = texto.replace("menos", "-")
+    texto = texto.replace("por", "x")
+    texto = texto.replace("multiplicado por", "x")
+    texto = texto.replace("dividido entre", "/")
+    texto = texto.replace("dividido por", "/")
+    texto = texto.replace("entre", "/")
+
+    patron = r'(\d+(?:\.\d+)?)\s*([\+\-\*/x])\s*(\d+(?:\.\d+)?)'
     coincidencia = re.search(patron, texto)
 
     if not coincidencia:
         return None
 
-    num1 = int(coincidencia.group(1))
+    num1 = float(coincidencia.group(1))
     operador = coincidencia.group(2)
-    num2 = int(coincidencia.group(3))
+    num2 = float(coincidencia.group(3))
 
     try:
         if operador == "+":
             resultado = num1 + num2
+            simbolo = "+"
         elif operador == "-":
             resultado = num1 - num2
-        elif operador == "*":
+            simbolo = "-"
+        elif operador in ["*", "x"]:
             resultado = num1 * num2
+            simbolo = "x"
         elif operador == "/":
             if num2 == 0:
                 return "No se puede dividir entre cero."
             resultado = num1 / num2
+            simbolo = "/"
         else:
             return None
 
         if resultado == int(resultado):
             resultado = int(resultado)
 
-        return f"{num1} {operador} {num2} = {resultado}"
+        if num1 == int(num1):
+            num1 = int(num1)
+        if num2 == int(num2):
+            num2 = int(num2)
+
+        return f"{num1} {simbolo} {num2} = {resultado}"
     except:
         return None
 
@@ -241,19 +262,19 @@ def detectar_respuesta_directa(mensaje):
     operacion = detectar_operacion_matematica(texto)
 
     if operacion is not None:
-        if "profesor" in texto and ("molesta" in texto or "molestar" in texto or "trata mal" in texto):
+        if "profesor" in texto and ("molesta" in texto or "reclama" in texto or "grita" in texto or "trata mal" in texto):
             return {
                 "categoria": "matematicas_y_problema_docente",
                 "emocion": "ESTRESADO",
                 "nivel": "MEDIA",
-                "respuesta": f"{operacion}\n\nTambién noté que mencionaste que tu profesor te molesta. Si eso te incomoda o te hace sentir mal, es importante que no lo guardes solo.\n\nRecomendación: habla con un adulto de confianza, tu tutor, tus padres o el área de psicología del colegio para que puedan orientarte.\n\n¿Quieres que te ayude con más ejercicios de matemáticas o quieres contarme qué pasó con tu profesor?"
+                "respuesta": f"{operacion}\n\nTambién noté que mencionaste un problema con tu profesor. Si eso te incomoda o te hace sentir mal, es importante hablarlo.\n\nRecomendación: busca un momento tranquilo para conversar con un adulto de confianza, tutor, tus padres o el área de psicología.\n\n¿Quieres seguir con matemáticas o quieres contarme qué pasó con tu profesor?"
             }
 
         return {
             "categoria": "matematicas_basicas",
             "emocion": "NEUTRAL",
             "nivel": "BAJA",
-            "respuesta": f"{operacion}\n\nRecomendación: si tienes más ejercicios, puedes escribirme la operación y te ayudo paso a paso.\n\n¿Quieres resolver otro ejercicio?"
+            "respuesta": f"{operacion}\n\nRecomendación: si tienes más ejercicios, escríbeme la operación y te ayudo paso a paso.\n\n¿Quieres resolver otro ejercicio?"
         }
 
     riesgo = [
@@ -298,48 +319,83 @@ def detectar_respuesta_directa(mensaje):
             "respuesta": "Estoy aquí para escucharte y ayudarte 😊\n\nPuedes hablar conmigo sobre tus materias, tareas, emociones o alguna situación que estés viviendo en el colegio.\n\n¿Cómo te sientes tú hoy?"
         }
 
-    if "profesor" in texto and ("molesta" in texto or "molestar" in texto or "trata mal" in texto or "me grita" in texto):
+    if "profesor" in texto and ("molesta" in texto or "reclama" in texto or "grita" in texto or "trata mal" in texto):
         return {
-            "categoria": "problema_docente",
+            "categoria": "conflicto_docente",
             "emocion": "ESTRESADO",
             "nivel": "MEDIA",
-            "respuesta": "Lamento que estés pasando por eso. Si un profesor te molesta o te hace sentir incómodo, es importante tomarlo con seriedad.\n\nRecomendación: intenta contarle la situación a un adulto de confianza, a tus padres, tutor o al área de psicología del colegio. No es bueno guardar eso solo.\n\n¿Quieres contarme qué ocurrió exactamente?"
+            "respuesta": "Entiendo que eso te preocupe. Cuando hay tensión con un docente, puede dar miedo hablar.\n\nRecomendación: busca un momento tranquilo para preguntar con respeto qué puedes mejorar. Si el trato te hace sentir mal, cuéntaselo a tus padres, tutor o psicología.\n\n¿Qué pasó exactamente con el docente?"
         }
 
-    if "matematica" in texto or "matematicas" in texto or "matemetixas" in texto or "mate" in texto:
-        if "tip" in texto or "mejorar" in texto or "aprender" in texto or "ayuda" in texto:
-            return {
-                "categoria": "apoyo_matematicas",
-                "emocion": "NEUTRAL",
-                "nivel": "BAJA",
-                "respuesta": "Claro 😊 Para mejorar en matemáticas te recomiendo practicar poco a poco y no memorizar sin entender.\n\nRecomendación:\n• repasa operaciones básicas\n• practica 15 a 20 minutos al día\n• resuelve ejercicios paso a paso\n• revisa tus errores sin frustrarte\n• pregunta cuando no entiendas un procedimiento\n\n¿Quieres que practiquemos con sumas, restas, multiplicaciones, divisiones o álgebra?"
-            }
+    if "matematica" in texto or "matematicas" in texto or "matemetixas" in texto or "mate" in texto or "aritmetica" in texto or "algebra" in texto:
+        return {
+            "categoria": "apoyo_matematicas",
+            "emocion": "NEUTRAL",
+            "nivel": "BAJA",
+            "respuesta": "Claro 😊 Matemáticas se mejora practicando paso a paso.\n\nPuedo ayudarte con:\n• sumas\n• restas\n• multiplicaciones\n• divisiones\n• fracciones\n• álgebra básica\n• problemas razonados\n\nRecomendación: empieza con ejercicios pequeños y revisa en qué paso te equivocas.\n\n¿Qué ejercicio o tema de matemáticas necesitas?"
+        }
 
     materias = {
-        "fisica": "Física estudia fenómenos como fuerza, movimiento, energía, calor y electricidad.",
-        "quimica": "Química estudia la materia, sus cambios, mezclas, sustancias y reacciones.",
-        "biologia": "Biología estudia los seres vivos, las células, el cuerpo humano, plantas, animales y ecosistemas.",
-        "historia": "Historia estudia hechos importantes del pasado para comprender mejor el presente.",
-        "geografia": "Geografía estudia la Tierra, mapas, regiones, clima, población y recursos naturales.",
-        "lenguaje": "Lenguaje ayuda a mejorar lectura, escritura, comprensión, ortografía y comunicación.",
-        "literatura": "Literatura estudia textos, cuentos, poemas, novelas y formas de expresión escrita.",
-        "ingles": "Inglés ayuda a comunicarte en otro idioma mediante vocabulario, lectura, escritura y pronunciación."
+        "fisica": {
+            "categoria": "apoyo_fisica",
+            "respuesta": "La Física estudia el movimiento, la fuerza, la energía, la velocidad, la gravedad y otros fenómenos naturales.\n\nRecomendación: para aprender Física, relaciona cada fórmula con un ejemplo real. Por ejemplo: velocidad = distancia / tiempo.\n\n¿Quieres ayuda con movimiento, fuerza, energía o velocidad?"
+        },
+        "quimica": {
+            "categoria": "apoyo_quimica",
+            "respuesta": "La Química estudia la materia, los átomos, las moléculas, las sustancias y las reacciones químicas.\n\nRecomendación: empieza por entender átomo, elemento, compuesto y mezcla. Luego puedes avanzar a tabla periódica y reacciones.\n\n¿Qué tema de Química necesitas?"
+        },
+        "biologia": {
+            "categoria": "apoyo_biologia",
+            "respuesta": "La Biología estudia los seres vivos: células, cuerpo humano, animales, plantas, ecosistemas y funciones vitales.\n\nRecomendación: usa dibujos y esquemas para entender mejor cada parte.\n\n¿Quieres ayuda con célula, cuerpo humano, plantas, animales o ecosistemas?"
+        },
+        "geografia": {
+            "categoria": "apoyo_geografia",
+            "respuesta": "La Geografía estudia la Tierra, los mapas, continentes, países, climas, relieve, población y recursos naturales.\n\nRecomendación: usa mapas para ubicar lugares y relaciona cada región con su clima y características.\n\n¿Qué tema de Geografía necesitas?"
+        },
+        "historia": {
+            "categoria": "apoyo_historia",
+            "respuesta": "La Historia estudia hechos importantes del pasado para entender el presente.\n\nRecomendación: organiza los hechos en líneas de tiempo y separa causas, desarrollo y consecuencias.\n\n¿Qué tema de Historia estás viendo?"
+        },
+        "ciencias sociales": {
+            "categoria": "apoyo_ciencias_sociales",
+            "respuesta": "Las Ciencias Sociales estudian la sociedad, la historia, la geografía, la economía, la cultura y la forma en que las personas conviven.\n\nRecomendación: identifica primero el lugar, la época, los personajes y las causas del tema.\n\n¿Qué tema de Ciencias Sociales necesitas?"
+        },
+        "sociales": {
+            "categoria": "apoyo_ciencias_sociales",
+            "respuesta": "Las Ciencias Sociales estudian la sociedad, la historia, la geografía, la economía, la cultura y la convivencia humana.\n\nRecomendación: resume cada tema respondiendo: qué pasó, dónde pasó, cuándo pasó y por qué pasó.\n\n¿Qué tema de Sociales necesitas?"
+        },
+        "ciencias naturales": {
+            "categoria": "apoyo_ciencias_naturales",
+            "respuesta": "Las Ciencias Naturales estudian la naturaleza, los seres vivos, la materia, la energía, el ambiente y los fenómenos naturales.\n\nRecomendación: relaciona cada tema con ejemplos reales de tu entorno.\n\n¿Quieres ayuda con seres vivos, ecosistemas, materia, energía o medio ambiente?"
+        },
+        "naturales": {
+            "categoria": "apoyo_ciencias_naturales",
+            "respuesta": "Las Ciencias Naturales ayudan a comprender la naturaleza, los seres vivos, el cuerpo humano, la materia, la energía y el ambiente.\n\nRecomendación: usa ejemplos cotidianos para entender cada concepto.\n\n¿Qué tema de Naturales necesitas?"
+        },
+        "lenguaje": {
+            "categoria": "apoyo_lenguaje",
+            "respuesta": "Lenguaje ayuda a mejorar lectura, escritura, comprensión, ortografía, redacción y comunicación.\n\nRecomendación: lee textos cortos, subraya ideas principales y escribe resúmenes con tus propias palabras.\n\n¿Qué tema de Lenguaje necesitas?"
+        },
+        "ingles": {
+            "categoria": "apoyo_ingles",
+            "respuesta": "Inglés ayuda a aprender vocabulario, pronunciación, lectura, escritura y conversación básica.\n\nRecomendación: practica palabras cortas, frases simples y repite en voz alta.\n\n¿Qué tema de Inglés necesitas?"
+        }
     }
 
-    for materia, descripcion in materias.items():
+    for materia, datos in materias.items():
         if materia in texto:
             return {
-                "categoria": f"apoyo_{materia}",
+                "categoria": datos["categoria"],
                 "emocion": "NEUTRAL",
                 "nivel": "BAJA",
-                "respuesta": f"{descripcion}\n\nRecomendación: dime qué tema específico no entiendes y te lo explico de forma sencilla con ejemplos.\n\n¿Sobre qué tema de {materia} necesitas ayuda?"
+                "respuesta": datos["respuesta"]
             }
 
     academico = [
         "dame tips", "tips para aprender", "aprender mejor", "estudiar mejor",
         "como estudio", "como puedo estudiar", "tarea", "examen", "exponer",
         "resumen", "lectura", "ortografia", "no entiendo", "explicame",
-        "ayudame con mi tarea"
+        "ayudame con mi tarea", "ayuda en clase", "colegio", "materia"
     ]
 
     for palabra in academico:
@@ -348,7 +404,7 @@ def detectar_respuesta_directa(mensaje):
                 "categoria": "apoyo_academico",
                 "emocion": "NEUTRAL",
                 "nivel": "BAJA",
-                "respuesta": "Claro, puedo ayudarte con temas del colegio.\n\nRecomendación: dime la materia y el tema exacto. Por ejemplo: matemáticas, física, química, biología, historia, geografía, lenguaje o inglés.\n\n¿Qué materia quieres practicar?"
+                "respuesta": "Claro, puedo ayudarte con temas del colegio.\n\nPuedo apoyarte en:\n• Matemáticas\n• Física\n• Química\n• Biología\n• Geografía\n• Ciencias Sociales\n• Ciencias Naturales\n• Lenguaje\n• Inglés\n\nRecomendación: dime la materia y el tema exacto para darte una explicación más precisa.\n\n¿Qué materia quieres practicar?"
             }
 
     negacion_malestar = [
@@ -426,7 +482,10 @@ def corregir_categoria_con_memoria(mensaje, categoria_predicha, memoria):
     categorias_no_continuar = [
         "saludo", "saludo_estado", "despedida", "agradecimiento",
         "estado_positivo", "apoyo_academico", "apoyo_matematicas",
-        "matematicas_basicas"
+        "matematicas_basicas", "apoyo_fisica", "apoyo_quimica",
+        "apoyo_biologia", "apoyo_geografia", "apoyo_historia",
+        "apoyo_ciencias_sociales", "apoyo_ciencias_naturales",
+        "apoyo_lenguaje", "apoyo_ingles"
     ]
 
     ultima_categoria = str(memoria[0]["categoria"])
@@ -490,7 +549,10 @@ def mejorar_respuesta_con_contexto(respuesta, memoria, categoria_actual):
     categorias_no_emocionales = [
         "saludo", "saludo_estado", "despedida", "agradecimiento",
         "estado_positivo", "apoyo_academico", "apoyo_matematicas",
-        "matematicas_basicas"
+        "matematicas_basicas", "apoyo_fisica", "apoyo_quimica",
+        "apoyo_biologia", "apoyo_geografia", "apoyo_historia",
+        "apoyo_ciencias_sociales", "apoyo_ciencias_naturales",
+        "apoyo_lenguaje", "apoyo_ingles"
     ]
 
     if categoria_actual in categorias_no_emocionales:
