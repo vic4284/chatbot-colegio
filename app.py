@@ -259,15 +259,20 @@ def detectar_operacion_matematica(texto):
 def detectar_respuesta_directa(mensaje):
     texto = limpiar_texto(mensaje)
 
+    # Correcciones simples de escritura
+    texto = texto.replace("mycha", "mucha")
+    texto = texto.replace("mucho tarea", "mucha tarea")
+    texto = texto.replace("arto", "harto")
+
     operacion = detectar_operacion_matematica(texto)
 
     if operacion is not None:
-        if "profesor" in texto and ("molesta" in texto or "reclama" in texto or "grita" in texto or "trata mal" in texto):
+        if "profesor" in texto and ("molesta" in texto or "reclama" in texto or "grita" in texto or "trata mal" in texto or "tarea" in texto or "tareas" in texto):
             return {
                 "categoria": "matematicas_y_problema_docente",
                 "emocion": "ESTRESADO",
                 "nivel": "MEDIA",
-                "respuesta": f"{operacion}\n\nTambién noté que mencionaste un problema con tu profesor. Si eso te incomoda o te hace sentir mal, es importante hablarlo.\n\nRecomendación: busca un momento tranquilo para conversar con un adulto de confianza, tutor, tus padres o el área de psicología.\n\n¿Quieres seguir con matemáticas o quieres contarme qué pasó con tu profesor?"
+                "respuesta": f"{operacion}\n\nTambién noté que mencionaste un problema con tu profesor. Si eso te incomoda o te genera presión, es importante hablarlo.\n\nRecomendación: organiza primero el ejercicio o la tarea más urgente. Si el trato o la carga te está afectando, habla con tus padres, tutor o el área de psicología.\n\n¿Quieres seguir con matemáticas o quieres contarme qué pasó con tu profesor?"
             }
 
         return {
@@ -317,6 +322,46 @@ def detectar_respuesta_directa(mensaje):
             "emocion": "NEUTRAL",
             "nivel": "BAJA",
             "respuesta": "Estoy aquí para escucharte y ayudarte 😊\n\nPuedes hablar conmigo sobre tus materias, tareas, emociones o alguna situación que estés viviendo en el colegio.\n\n¿Cómo te sientes tú hoy?"
+        }
+
+    # PREGUNTAS SOBRE LO QUE SABE HACER EL BOT
+    materias_bot = [
+        "matematica", "matematicas", "fisica", "quimica", "biologia",
+        "geografia", "historia", "ciencias sociales", "sociales",
+        "ciencias naturales", "naturales", "lenguaje", "ingles"
+    ]
+
+    preguntas_capacidad = [
+        "sabes", "sabes de", "conoces", "entiendes", "dominas",
+        "hablas", "puedes hablar", "puedes responder", "me puedes explicar"
+    ]
+
+    for verbo in preguntas_capacidad:
+        if verbo in texto:
+            for materia in materias_bot:
+                if materia in texto:
+                    return {
+                        "categoria": "capacidades_bot",
+                        "emocion": "NEUTRAL",
+                        "nivel": "BAJA",
+                        "respuesta": "Sí 😊 Puedo ayudarte con esa materia y también con otras áreas del colegio.\n\nPuedo apoyarte en Matemáticas, Física, Química, Biología, Geografía, Historia, Ciencias Sociales, Ciencias Naturales, Lenguaje e Inglés.\n\nDime qué tema exacto necesitas y continuamos desde ahí."
+                    }
+
+    if "que sabes hacer" in texto or "en que puedes ayudar" in texto or "que puedes hacer" in texto:
+        return {
+            "categoria": "capacidades_bot",
+            "emocion": "NEUTRAL",
+            "nivel": "BAJA",
+            "respuesta": "Puedo ayudarte en dos partes principales 😊\n\n1. Apoyo académico: Matemáticas, Física, Química, Biología, Geografía, Historia, Ciencias Sociales, Ciencias Naturales, Lenguaje e Inglés.\n\n2. Apoyo emocional: puedo escucharte si te sientes triste, estresado, preocupado o si tienes problemas en el colegio.\n\n¿Qué necesitas ahora?"
+        }
+
+    # QUEJA SOBRE PROFESOR Y TAREAS
+    if "profesor" in texto and ("tarea" in texto or "tareas" in texto or "mucha" in texto or "muchas" in texto or "demasiada" in texto or "demasiadas" in texto):
+        return {
+            "categoria": "estres_academico_docente",
+            "emocion": "ESTRESADO",
+            "nivel": "MEDIA",
+            "respuesta": "Entiendo 😔 Cuando un profesor deja muchas tareas, puede sentirse pesado o estresante.\n\nRecomendación: intenta ordenar las tareas por prioridad: primero las más urgentes y luego las más fáciles. También puedes descansar unos minutos entre tareas.\n\nSi la carga es demasiada o te está afectando, sería bueno comentarlo con tus padres, tutor o el área de psicología.\n\n¿Te está costando terminar las tareas o más bien te sientes presionado por ese profesor?"
         }
 
     if "profesor" in texto and ("molesta" in texto or "reclama" in texto or "grita" in texto or "trata mal" in texto):
