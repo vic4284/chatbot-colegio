@@ -261,8 +261,13 @@ def detectar_respuesta_directa(mensaje):
 
     # Correcciones simples de escritura
     texto = texto.replace("mycha", "mucha")
-    texto = texto.replace("mucho tarea", "mucha tarea")
+    texto = texto.replace("mucha tarea", "muchas tareas")
+    texto = texto.replace("mucho tarea", "muchas tareas")
     texto = texto.replace("arto", "harto")
+    texto = texto.replace("nesecito", "necesito")
+    texto = texto.replace("necesitoo", "necesito")
+    texto = texto.replace("necestio", "necesito")
+    texto = texto.replace("ayuda en nada", "ayuda")
 
     operacion = detectar_operacion_matematica(texto)
 
@@ -286,7 +291,7 @@ def detectar_respuesta_directa(mensaje):
         "me quiero hacer dano", "quiero hacerme dano", "no quiero vivir",
         "quiero desaparecer", "quiero morir", "ya no puedo mas",
         "quisiera no existir", "me voy a lastimar", "me quiero suicidar",
-        "quiero suicidarme"
+        "quiero suicidarme", "me quiero matar", "quiero matarme"
     ]
 
     for palabra in riesgo:
@@ -297,6 +302,42 @@ def detectar_respuesta_directa(mensaje):
                 "nivel": "ALTA",
                 "respuesta": "Lo que me estás diciendo es muy importante y necesita apoyo inmediato.\n\nRecomendación: busca ahora mismo a un adulto de confianza, un familiar, un profesor o el área de psicología. No te quedes solo en este momento.\n\n¿Estás en un lugar seguro ahora?"
             }
+
+    # VALIDACIÓN DE GROSERÍAS O LENGUAJE OFENSIVO
+    groserias = [
+        "pendejo", "pendeja", "idiota", "imbecil", "estupido", "estupida",
+        "mierda", "carajo", "puta", "puto", "cabron", "cabrona",
+        "cojudo", "cojuda", "huevon", "huevona", "boludo", "boluda",
+        "maldito", "maldita", "joder", "chingar", "chingada", "chingado",
+        "vete a la mierda", "callate", "basura", "inutil"
+    ]
+
+    contiene_groseria = False
+    for groseria in groserias:
+        if groseria in texto:
+            contiene_groseria = True
+            break
+
+    # Si el estudiante usa groserías, pero además dice que no necesita ayuda,
+    # se responde cerrando bien la conversación y marcando límite de respeto.
+    if contiene_groseria and (
+        "no necesito" in texto or "no quiero ayuda" in texto or "no quiero nada" in texto or
+        "nada" in texto or "mas rato" in texto or "luego" in texto
+    ):
+        return {
+            "categoria": "lenguaje_inapropiado_sin_ayuda",
+            "emocion": "NEUTRAL",
+            "nivel": "BAJA",
+            "respuesta": "Está bien, no hay problema. Podemos hablar más tarde si lo necesitas.\n\nTambién te recomiendo expresarte con respeto, sin groserías, para que la conversación sea más tranquila.\n\nCuando necesites ayuda con una materia, una tarea o quieras hablar sobre cómo te sientes, puedes escribirme."
+        }
+
+    if contiene_groseria:
+        return {
+            "categoria": "lenguaje_inapropiado",
+            "emocion": "ENOJADO",
+            "nivel": "BAJA",
+            "respuesta": "Entiendo que puedes estar molesto, pero tratemos de conversar sin groserías.\n\nEstoy aquí para ayudarte, pero necesito que me expliques con respeto qué pasó.\n\n¿El problema es con una materia, una nota, un profesor, un compañero o cómo te sientes?"
+        }
 
     saludos = [
         "hola", "ola", "holaa", "holaaa", "holi", "hila", "buenas",
@@ -311,32 +352,25 @@ def detectar_respuesta_directa(mensaje):
             "respuesta": "Hola 😊 Estoy aquí para ayudarte.\n\nPuedes contarme si necesitas apoyo emocional, ayuda con alguna materia o simplemente conversar.\n\n¿En qué te puedo ayudar hoy?"
         }
 
-    # CUANDO EL USUARIO DICE QUE NO NECESITA NADA
+    # CUANDO EL USUARIO DICE QUE NO NECESITA NADA O QUIERE HABLAR DESPUÉS
     sin_ayuda = [
-        "no en nada",
-        "en nada",
-        "nada",
-        "no necesito nada",
-        "no necesito ayuda",
-        "no necesito ayuda en nada",
-        "no quiero ayuda",
-        "no quiero nada",
-        "por ahora nada",
-        "solo queria saludar",
-        "solo saludaba",
-        "solo queria decir hola",
-        "solo entre a saludar",
-        "ninguna cosa",
-        "ningun problema"
+        "no en nada", "en nada", "nada", "no necesito nada",
+        "no necesito ayuda", "no necesito ayuda en nada", "no quiero ayuda",
+        "no quiero nada", "por ahora nada", "solo queria saludar",
+        "solo saludaba", "solo queria decir hola", "solo entre a saludar",
+        "ninguna cosa", "ningun problema", "no hay nada", "todo bien",
+        "mas rato hablamos", "luego hablamos", "despues hablamos",
+        "hablamos luego", "hablamos despues", "otro rato", "mas tarde hablamos"
     ]
 
-    if texto in sin_ayuda:
-        return {
-            "categoria": "sin_necesidad_ayuda",
-            "emocion": "NEUTRAL",
-            "nivel": "BAJA",
-            "respuesta": "Está bien 😊 No hay problema.\n\nCuando necesites ayuda con una materia, una tarea o quieras hablar sobre cómo te sientes, puedes escribirme.\n\nEstoy aquí para apoyarte."
-        }
+    for frase in sin_ayuda:
+        if texto == frase or frase in texto:
+            return {
+                "categoria": "sin_necesidad_ayuda",
+                "emocion": "NEUTRAL",
+                "nivel": "BAJA",
+                "respuesta": "Está bien 😊 No hay problema.\n\nCuando necesites ayuda con una materia, una tarea o quieras hablar sobre cómo te sientes, puedes escribirme.\n\nEstoy aquí para apoyarte."
+            }
 
     preguntas_estado_bot = [
         "como estas", "como estas hoy", "que tal", "como te va",
@@ -545,7 +579,7 @@ def detectar_respuesta_directa(mensaje):
             "respuesta": "De nada 😊 Me alegra poder ayudarte.\n\nRecomendación: si algo vuelve a preocuparte o tienes dudas de alguna materia, puedes escribirme.\n\n¿Quieres hablar de algo más?"
         }
 
-    despedida = ["adios", "chau", "hasta luego", "nos vemos", "me voy"]
+    despedida = ["adios", "chau", "hasta luego", "nos vemos", "me voy", "mas rato hablamos", "luego hablamos", "despues hablamos"]
 
     if texto in despedida:
         return {
@@ -571,7 +605,6 @@ def detectar_respuesta_directa(mensaje):
 
     return None
 
-
 def corregir_categoria_con_memoria(mensaje, categoria_predicha, memoria):
     texto = limpiar_texto(mensaje)
 
@@ -581,7 +614,7 @@ def corregir_categoria_con_memoria(mensaje, categoria_predicha, memoria):
     categorias_no_continuar = [
         "saludo", "saludo_estado", "despedida", "agradecimiento",
         "estado_positivo", "apoyo_academico", "apoyo_matematicas",
-        "matematicas_basicas", "capacidades_bot", "apoyo_fisica", "apoyo_quimica",
+        "matematicas_basicas", "capacidades_bot", "sin_necesidad_ayuda", "lenguaje_inapropiado", "lenguaje_inapropiado_sin_ayuda", "apoyo_fisica", "apoyo_quimica",
         "apoyo_biologia", "apoyo_geografia", "apoyo_historia",
         "apoyo_ciencias_sociales", "apoyo_ciencias_naturales",
         "apoyo_lenguaje", "apoyo_ingles"
@@ -648,7 +681,7 @@ def mejorar_respuesta_con_contexto(respuesta, memoria, categoria_actual):
     categorias_no_emocionales = [
         "saludo", "saludo_estado", "despedida", "agradecimiento",
         "estado_positivo", "apoyo_academico", "apoyo_matematicas",
-        "matematicas_basicas", "capacidades_bot", "apoyo_fisica", "apoyo_quimica",
+        "matematicas_basicas", "capacidades_bot", "sin_necesidad_ayuda", "lenguaje_inapropiado", "lenguaje_inapropiado_sin_ayuda", "apoyo_fisica", "apoyo_quimica",
         "apoyo_biologia", "apoyo_geografia", "apoyo_historia",
         "apoyo_ciencias_sociales", "apoyo_ciencias_naturales",
         "apoyo_lenguaje", "apoyo_ingles"
