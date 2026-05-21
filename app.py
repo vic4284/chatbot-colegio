@@ -372,6 +372,33 @@ def detectar_respuesta_directa(mensaje):
             "respuesta": "Entiendo que eso te preocupe. Cuando hay tensión con un docente, puede dar miedo hablar.\n\nRecomendación: busca un momento tranquilo para preguntar con respeto qué puedes mejorar. Si el trato te hace sentir mal, cuéntaselo a tus padres, tutor o psicología.\n\n¿Qué pasó exactamente con el docente?"
         }
 
+    # CONTINUACIÓN DE CONVERSACIÓN SOBRE NOTAS / CALIFICACIONES
+    if (
+        "nota" in texto or "notas" in texto or "calificacion" in texto or
+        "calificaciones" in texto or "reprobe" in texto or "reprobar" in texto or
+        "baja nota" in texto or "mala nota" in texto or "malas notas" in texto or
+        "examen" in texto or "prueba" in texto or "me aplazaron" in texto or
+        "me fue mal" in texto or "me saque bajo" in texto or "me saque mala" in texto
+    ):
+        return {
+            "categoria": "estres_academico_notas",
+            "emocion": "ESTRESADO",
+            "nivel": "MEDIA",
+            "respuesta": "Ahora entiendo mejor. Te refieres a una nota o calificación que te afectó.\n\nEs normal sentirse preocupado cuando una nota no sale como esperabas, pero una calificación no define tu capacidad.\n\nRecomendación: revisa en qué parte fallaste, pregunta al profesor qué puedes mejorar y organiza un pequeño plan de estudio para recuperar esa materia.\n\n¿Esa nota te hizo sentir triste, preocupado o presionado?"
+        }
+
+    # RESPUESTAS CORTAS DE CONTINUACIÓN
+    if texto in [
+        "si eso fue", "si fue eso", "eso fue", "fue eso", "si", "eso",
+        "si fue", "eso mismo", "exacto", "asi es", "claro", "ok eso"
+    ]:
+        return {
+            "categoria": "continuacion_ambigua",
+            "emocion": "NEUTRAL",
+            "nivel": "BAJA",
+            "respuesta": "Entiendo, pero necesito que me des una pista más para ayudarte bien.\n\n¿Fue por una nota, por un profesor, por una tarea, por tus compañeros o por cómo te sentías?"
+        }
+
     if "matematica" in texto or "matematicas" in texto or "matemetixas" in texto or "mate" in texto or "aritmetica" in texto or "algebra" in texto:
         return {
             "categoria": "apoyo_matematicas",
@@ -527,7 +554,7 @@ def corregir_categoria_con_memoria(mensaje, categoria_predicha, memoria):
     categorias_no_continuar = [
         "saludo", "saludo_estado", "despedida", "agradecimiento",
         "estado_positivo", "apoyo_academico", "apoyo_matematicas",
-        "matematicas_basicas", "apoyo_fisica", "apoyo_quimica",
+        "matematicas_basicas", "capacidades_bot", "apoyo_fisica", "apoyo_quimica",
         "apoyo_biologia", "apoyo_geografia", "apoyo_historia",
         "apoyo_ciencias_sociales", "apoyo_ciencias_naturales",
         "apoyo_lenguaje", "apoyo_ingles"
@@ -594,7 +621,7 @@ def mejorar_respuesta_con_contexto(respuesta, memoria, categoria_actual):
     categorias_no_emocionales = [
         "saludo", "saludo_estado", "despedida", "agradecimiento",
         "estado_positivo", "apoyo_academico", "apoyo_matematicas",
-        "matematicas_basicas", "apoyo_fisica", "apoyo_quimica",
+        "matematicas_basicas", "capacidades_bot", "apoyo_fisica", "apoyo_quimica",
         "apoyo_biologia", "apoyo_geografia", "apoyo_historia",
         "apoyo_ciencias_sociales", "apoyo_ciencias_naturales",
         "apoyo_lenguaje", "apoyo_ingles"
@@ -682,7 +709,7 @@ def chatbot():
 
             if confianza < 0.35:
                 categoria = "malestar_ambiguo"
-                respuesta = "No entendí bien tu mensaje. Para ayudarte mejor, dime si se relaciona con una materia del colegio, una emoción o un problema con alguien.\n\nRecomendación: puedes escribir algo como: 'necesito ayuda en matemáticas', 'me siento triste' o 'tengo un problema con un compañero'.\n\n¿A qué tema te refieres?"
+                respuesta = "No entendí completamente tu mensaje, pero puedo seguir la conversación si me das una pista.\n\nDime si se relaciona con:\n• una nota\n• una tarea\n• un profesor\n• un compañero\n• una emoción\n• una materia\n\nPor ejemplo: 'fue por una nota', 'fue por mi profesor' o 'me siento triste por eso'."
                 emocion_detectada = "NEUTRAL"
                 nivel_alerta = "BAJA"
 
