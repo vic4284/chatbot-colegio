@@ -648,7 +648,55 @@ def detectar_respuesta_directa(mensaje):
             "nivel": "MEDIA",
             "respuesta": "Entiendo que eso te preocupe. Cuando hay tensión con un docente, puede dar miedo hablar.\n\nRecomendación: busca un momento tranquilo para preguntar con respeto qué puedes mejorar. Si el trato te hace sentir mal, cuéntaselo a tus padres, tutor o psicología.\n\n¿Qué pasó exactamente con el docente?"
         }
+    # EVALUACIONES, EXÁMENES, DEFENSAS Y MATERIAS
+    materias_generales = [
+        "matematica", "matematicas", "fisica", "quimica", "biologia",
+        "historia", "geografia", "ingles", "lenguaje", "literatura",
+        "sociales", "ciencias sociales", "naturales",
+        "ciencias naturales", "informatica", "computacion",
+        "programacion", "religion", "musica", "arte",
+        "educacion fisica", "filosofia", "psicologia"
+    ]
 
+    evaluaciones_generales = [
+        "examen", "examenes", "prueba", "pruebas",
+        "defensa", "defensas", "final", "finales",
+        "exposicion", "exposiciones", "presentacion",
+        "presentaciones", "oral", "tribunal", "jurado",
+        "clase", "clases"
+    ]
+
+    presion = [
+        "nervioso", "nerviosa", "estresado", "estresada",
+        "ansioso", "ansiosa", "preocupado", "preocupada",
+        "miedo", "presion", "presionado", "presionada",
+        "si algo falla", "todo debe salir bien",
+        "estoy perdido", "voy a fallar"
+    ]
+
+    if any(e in texto for e in evaluaciones_generales):
+
+        materia_detectada = None
+
+        for materia in materias_generales:
+            if materia in texto:
+                materia_detectada = materia.capitalize()
+                break
+
+        if materia_detectada is None:
+            materia_detectada = "esa materia"
+
+        emocion = "ANSIOSO"
+
+        if any(p in texto for p in presion):
+            emocion = "ESTRESADO"
+
+        return {
+            "categoria": "ansiedad_evaluacion_materia",
+            "emocion": emocion,
+            "nivel": "MEDIA",
+            "respuesta": f"Entiendo. Parece que estás preocupado por una evaluación o actividad importante de {materia_detectada}.\n\nEs normal sentir nervios antes de exámenes, pruebas, defensas, exposiciones o clases importantes.\n\nRecomendación: divide el estudio en partes pequeñas, empieza por lo más importante y descansa unos minutos entre repasos.\n\n¿Qué es lo que más te preocupa: equivocarte, olvidarte, que te evalúen o no sentirte preparado?"
+        }
     # CONTINUACIÓN DE CONVERSACIÓN SOBRE NOTAS / CALIFICACIONES
     if (
         "nota" in texto or "notas" in texto or "calificacion" in texto or
