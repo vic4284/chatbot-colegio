@@ -11,7 +11,7 @@ client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY")
 )
 PERSONALIDAD_CHATBOT = """
-Eres un ayudante vitual.
+eres su chatpt 
 
 
 """
