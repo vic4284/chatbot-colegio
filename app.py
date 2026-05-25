@@ -1260,14 +1260,36 @@ def mejorar_respuesta_con_contexto(respuesta, memoria, categoria_actual):
     return respuesta
 
 
+@app.route("/", methods=["GET"])
+def inicio():
+    return jsonify({
+        "success": True,
+        "message": "Chatbot escolar activo",
+        "endpoint": "/chatbot"
+    })
 
 
-        
+@app.route("/chatbot", methods=["POST"])
+def chatbot():
+    mensaje = request.form.get("mensaje", "").strip()
+    id_usuario = request.form.get("id_usuario", "0")
+
+    if mensaje == "":
+        return jsonify({
+            "success": False,
+            "message": "Mensaje vacío"
+        })
 
     try:
         id_usuario = int(id_usuario)
     except:
         id_usuario = 0
+
+    if id_usuario <= 0:
+        return jsonify({
+            "success": False,
+            "message": "No se recibió el usuario del estudiante"
+        })
 
     conexion = conectar_bd()
 
@@ -1350,6 +1372,17 @@ def mejorar_respuesta_con_contexto(respuesta, memoria, categoria_actual):
 
                     conexion.close()
 
+                    return jsonify({
+                        "success": True,
+                        "mensaje_usuario": mensaje,
+                        "respuesta": respuesta,
+                        "categoria": categoria,
+                        "emocion_detectada": emocion_detectada,
+                        "nivel_alerta": nivel_alerta,
+                        "id_usuario": id_usuario,
+                        "id_estudiante": id_estudiante,
+                        "registrado": registrado
+                    })
 
                 categoria = "malestar_ambiguo"
                 respuesta = "No entendí completamente tu mensaje, pero puedo seguir la conversación si me das una pista.\n\nDime si se relaciona con:\n• una nota\n• una tarea\n• un profesor\n• un compañero\n• una emoción\n• una materia\n\nPor ejemplo: 'fue por una nota', 'fue por mi profesor' o 'me siento triste por eso'."
@@ -1359,6 +1392,18 @@ def mejorar_respuesta_con_contexto(respuesta, memoria, categoria_actual):
                 guardar_memoria(conexion, id_estudiante, mensaje, respuesta, categoria, emocion_detectada, nivel_alerta)
                 registrado = registrar_analisis(conexion, id_estudiante, emocion_detectada, nivel_alerta)
                 conexion.close()
+
+                return jsonify({
+                    "success": True,
+                    "mensaje_usuario": mensaje,
+                    "respuesta": respuesta,
+                    "categoria": categoria,
+                    "emocion_detectada": emocion_detectada,
+                    "nivel_alerta": nivel_alerta,
+                    "id_usuario": id_usuario,
+                    "id_estudiante": id_estudiante,
+                    "registrado": registrado
+                })
         else:
             categoria = modelo.predict(mensaje_vect)[0]
 
@@ -1414,6 +1459,18 @@ def mejorar_respuesta_con_contexto(respuesta, memoria, categoria_actual):
     )
 
     conexion.close()
+
+    return jsonify({
+        "success": True,
+        "mensaje_usuario": mensaje,
+        "respuesta": respuesta,
+        "categoria": categoria,
+        "emocion_detectada": emocion_detectada,
+        "nivel_alerta": nivel_alerta,
+        "id_usuario": id_usuario,
+        "id_estudiante": id_estudiante,
+        "registrado": registrado
+    })
 
 
 if __name__ == "__main__":
