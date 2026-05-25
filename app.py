@@ -1460,17 +1460,7 @@ def chatbot():
 
     conexion.close()
 
-    return jsonify({
-        "success": True,
-        "mensaje_usuario": mensaje,
-        "respuesta": respuesta,
-        "categoria": categoria,
-        "emocion_detectada": emocion_detectada,
-        "nivel_alerta": nivel_alerta,
-        "id_usuario": id_usuario,
-        "id_estudiante": id_estudiante,
-        "registrado": registrado
-    })
+    
 
 
 if __name__ == "__main__":
