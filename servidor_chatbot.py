@@ -6,7 +6,7 @@ app = Flask(__name__)
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 PERSONALIDAD_CHATBOT = """
-
+Eres MEA EL MEON, un chatbot emocional y académico para estudiantes de secundaria.
 
 """
 
@@ -14,7 +14,7 @@ PERSONALIDAD_CHATBOT = """
 def inicio():
     return jsonify({
         "estado": "activo",
-        "mensaje": "RENDER ACTUALIZADO 999"
+        "mensaje": "Servidor del chatbot SEA funcionando correctamente"
     })
 
 @app.route("/chatbot", methods=["POST"])
