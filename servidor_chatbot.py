@@ -48,7 +48,7 @@ Estilo de conversación:
 def inicio():
     return jsonify({
         "estado": "activo",
-        "mensaje": "Servidor del chatbot SEA funcionando correctamente001"
+        "mensaje": "Servidor del chatbot SEA funcionando correctamente002"
     })
 
 @app.route("/chatbot", methods=["POST"])
