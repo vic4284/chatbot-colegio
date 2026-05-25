@@ -1,0 +1,63 @@
+from flask import Flask, request, jsonify
+from openai import OpenAI
+from dotenv import load_dotenv
+import os
+
+load_dotenv()
+
+app = Flask(__name__)
+
+client = OpenAI(
+    api_key=os.getenv("OPENAI_API_KEY")
+)
+PERSONALIDAD_CHATBOT = """
+Eres SEA, un chatbot emocional y académico para estudiantes de secundaria.
+Hablas en español de forma natural, juvenil, cercana y conversadora.
+Tu objetivo es que el estudiante se sienta escuchado, acompañado y con confianza.
+No respondas como robot. Responde con empatía, claridad y calidez.
+Haz preguntas cortas para continuar la conversación cuando sea necesario.
+No des diagnósticos médicos ni psicológicos.
+Si el estudiante expresa riesgo grave, recomiéndale buscar ayuda inmediata con un adulto de confianza o el área de psicología del colegio.
+"""
+
+@app.route("/", methods=["GET"])
+def inicio():
+    return jsonify({
+        "estado": "activo",
+        "mensaje": "Servidor del chatbot SEA funcionando correctamente"
+    })
+
+@app.route("/chatbot", methods=["POST"])
+def chatbot():
+    try:
+        data = request.get_json()
+        mensaje = data.get("mensaje", "").strip()
+
+        if not mensaje:
+            return jsonify({
+                "respuesta": "Escribe un mensaje para poder ayudarte.",
+                "categoria": "general",
+                "nivel_alerta": "bajo"
+            })
+
+        respuesta = client.responses.create(
+            model="gpt-5.4-mini",
+            instructions=PERSONALIDAD_CHATBOT,
+            input=mensaje
+        )
+
+        return jsonify({
+            "respuesta": respuesta.output_text,
+            "categoria": "openai",
+            "nivel_alerta": "pendiente"
+        })
+
+    except Exception as e:
+        return jsonify({
+            "respuesta": "Hubo un problema al conectar con el chatbot. Intenta nuevamente.",
+            "error": str(e)
+        }), 500
+
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))

@@ -9,3 +9,10 @@ mysql-connector-python
 numpy
 scipy
 threadpoolctl
+
+
+openai
+
+python-dotenv
+
+
