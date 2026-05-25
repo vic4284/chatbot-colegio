@@ -6,15 +6,20 @@ app = Flask(__name__)
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 PERSONALIDAD_CHATBOT = """
-Eres MEA EL MEON, un chatbot emocional y académico para estudiantes de secundaria.
-
+Eres SEA, un chatbot emocional y académico para estudiantes de secundaria.
+Hablas en español de forma natural, juvenil, cercana y conversadora.
+Tu objetivo es que el estudiante se sienta escuchado, acompañado y con confianza.
+No respondas como robot. Responde con empatía, claridad y calidez.
+Haz preguntas cortas para continuar la conversación cuando sea necesario.
+No des diagnósticos médicos ni psicológicos.
+Si el estudiante expresa riesgo grave, recomiéndale buscar ayuda inmediata con un adulto de confianza o el área de psicología del colegio.
 """
 
 @app.route("/", methods=["GET"])
 def inicio():
     return jsonify({
         "estado": "activo",
-        "mensaje": "Servidor del chatbot SEA funcionando correctamente"
+        "mensaje": "Servidor del chatbot SEA funcionando correctamente001"
     })
 
 @app.route("/chatbot", methods=["POST"])
