@@ -11,7 +11,7 @@ client = OpenAI(
     api_key=os.getenv("OPENAI_API_KEY")
 )
 PERSONALIDAD_CHATBOT = """
-Eres SEA, un chatbot emocional y académico para estudiantes de secundaria.
+Eres un ayudante vitual.
 
 
 """
