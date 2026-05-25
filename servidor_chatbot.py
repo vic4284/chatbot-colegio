@@ -56,7 +56,7 @@ Estilo:
 def inicio():
     return jsonify({
         "estado": "activo",
-        "mensaje": "Servidor del chatbot SEA funcionando correctamente002"
+        "mensaje": "Servidor del chatbot SEA funcionando correctamente001"
     })
 
 @app.route("/chatbot", methods=["POST"])
