@@ -6,7 +6,7 @@ app = Flask(__name__)
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 PERSONALIDAD_CHATBOT = """
-Eres MEA EL MEON, un chatbot emocional y académico para estudiantes de secundaria.
+
 
 """
 
