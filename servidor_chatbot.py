@@ -126,7 +126,7 @@ Importante:
 def inicio():
     return jsonify({
         "estado": "activo",
-        "mensaje": "Servidor del chatbot SEA funcionando con OpenAI y NLP emocional"
+        "mensaje": "Servidor del chatbot SEA funcionando con OpenAI y NLP emocional001"
     })
 
 
