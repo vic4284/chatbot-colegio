@@ -1,11 +1,18 @@
 import pandas as pd
 import joblib
 import re
+import os
 
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
+
+
+RUTA_DATASET = "dataset/dataset_limpio.csv"
+CARPETA_MODELOS = "modelos"
+
+os.makedirs(CARPETA_MODELOS, exist_ok=True)
 
 
 def limpiar_texto(texto):
@@ -15,22 +22,59 @@ def limpiar_texto(texto):
     return texto
 
 
-df = pd.read_csv("dataset_limpio.csv", encoding="utf-8-sig")
-df = df.dropna(subset=["pregunta", "categoria"])
+def entrenar_modelo(df, columna_objetivo, nombre_modelo, vectorizador):
+    df_temp = df.dropna(subset=["pregunta", columna_objetivo])
+
+    X = df_temp["pregunta"]
+    y = df_temp[columna_objetivo].astype(str).str.strip()
+
+    X_train, X_test, y_train, y_test = train_test_split(
+        X,
+        y,
+        test_size=0.2,
+        random_state=42,
+        stratify=y if y.value_counts().min() >= 2 else None
+    )
+
+    X_train_vect = vectorizador.fit_transform(X_train)
+    X_test_vect = vectorizador.transform(X_test)
+
+    modelo = LogisticRegression(
+        max_iter=2000,
+        class_weight="balanced"
+    )
+
+    modelo.fit(X_train_vect, y_train)
+
+    predicciones = modelo.predict(X_test_vect)
+    precision = accuracy_score(y_test, predicciones)
+
+    joblib.dump(modelo, f"{CARPETA_MODELOS}/{nombre_modelo}.pkl")
+
+    print(f"Modelo {nombre_modelo} entrenado correctamente")
+    print(f"Precisión {nombre_modelo}: {round(precision * 100, 2)} %")
+    print("------------------------------------")
+
+    return precision
+
+
+df = pd.read_csv(RUTA_DATASET, encoding="utf-8-sig")
+
+df = df.dropna(subset=[
+    "pregunta",
+    "emocion",
+    "intencion",
+    "nivel_emocional",
+    "recomendacion"
+])
 
 df["pregunta"] = df["pregunta"].apply(limpiar_texto)
-df["categoria"] = df["categoria"].astype(str).str.strip()
 
-X = df["pregunta"]
-y = df["categoria"]
+df["emocion"] = df["emocion"].astype(str).str.strip().str.upper()
+df["intencion"] = df["intencion"].astype(str).str.strip()
+df["nivel_emocional"] = df["nivel_emocional"].astype(str).str.strip().str.upper()
+df["recomendacion"] = df["recomendacion"].astype(str).str.strip()
 
-X_train, X_test, y_train, y_test = train_test_split(
-    X,
-    y,
-    test_size=0.2,
-    random_state=42,
-    stratify=y if y.value_counts().min() >= 2 else None
-)
 
 vectorizador = TfidfVectorizer(
     ngram_range=(1, 2),
@@ -39,21 +83,36 @@ vectorizador = TfidfVectorizer(
     sublinear_tf=True
 )
 
-X_train_vect = vectorizador.fit_transform(X_train)
-X_test_vect = vectorizador.transform(X_test)
+joblib.dump(vectorizador, f"{CARPETA_MODELOS}/vectorizador.pkl")
 
-modelo = LogisticRegression(
-    max_iter=1500,
-    class_weight="balanced"
+
+# Modelo 1: emoción detectada
+precision_emocion = entrenar_modelo(
+    df,
+    "emocion",
+    "modelo_emocion",
+    vectorizador
 )
 
-modelo.fit(X_train_vect, y_train)
+# Modelo 2: intención detectada
+precision_intencion = entrenar_modelo(
+    df,
+    "intencion",
+    "modelo_intencion",
+    vectorizador
+)
 
-predicciones = modelo.predict(X_test_vect)
-precision = accuracy_score(y_test, predicciones)
+# Modelo 3: nivel emocional
+precision_nivel = entrenar_modelo(
+    df,
+    "nivel_emocional",
+    "modelo_nivel_emocional",
+    vectorizador
+)
 
-joblib.dump(modelo, "modelo_chatbot.pkl")
-joblib.dump(vectorizador, "vectorizador.pkl")
 
-print("Modelo entrenado correctamente")
-print("Precisión:", round(precision * 100, 2), "%")
+print("Entrenamiento finalizado correctamente")
+print("Resumen de precisión:")
+print("Emoción:", round(precision_emocion * 100, 2), "%")
+print("Intención:", round(precision_intencion * 100, 2), "%")
+print("Nivel emocional:", round(precision_nivel * 100, 2), "%")
