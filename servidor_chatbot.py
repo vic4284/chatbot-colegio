@@ -2,9 +2,13 @@ from flask import Flask, request, jsonify
 from openai import OpenAI
 import os
 
+# Inicialización del servidor Flask
 app = Flask(__name__)
+
+# Conexión con OpenAI mediante variable de entorno
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
+# Personalidad principal del chatbot SEA
 PERSONALIDAD_CHATBOT = """
 Eres SEA, un chatbot emocional y académico para estudiantes de secundaria.
 
@@ -52,6 +56,7 @@ Estilo:
 - Responsable
 """
 
+# Ruta principal para verificar funcionamiento del servidor
 @app.route("/", methods=["GET"])
 def inicio():
     return jsonify({
@@ -59,12 +64,17 @@ def inicio():
         "mensaje": "Servidor del chatbot SEA funcionando correctamente001"
     })
 
+# Endpoint principal del chatbot
 @app.route("/chatbot", methods=["POST"])
 def chatbot():
+
     try:
+
+        # Recepción del mensaje desde Android
         data = request.get_json()
         mensaje = data.get("mensaje", "").strip()
 
+        # Validación de mensaje vacío
         if not mensaje:
             return jsonify({
                 "respuesta": "Escribe un mensaje para poder ayudarte.",
@@ -72,6 +82,7 @@ def chatbot():
                 "nivel_alerta": "bajo"
             })
 
+        # Contexto enviado al modelo
         entrada_usuario = f"""
 Mensaje del estudiante:
 {mensaje}
@@ -80,24 +91,29 @@ Responde como SEA siguiendo tu personalidad.
 Prioriza que la conversación continúe y que el estudiante se sienta escuchado.
 """
 
+        # Generación de respuesta mediante OpenAI
         respuesta = client.responses.create(
             model="gpt-5.4-mini",
             instructions=PERSONALIDAD_CHATBOT,
             input=entrada_usuario
         )
 
+        # Respuesta enviada a Android
         return jsonify({
             "respuesta": respuesta.output_text,
             "categoria": "openai",
             "nivel_alerta": "pendiente"
         })
 
+    # Manejo general de errores
     except Exception as e:
+
         return jsonify({
             "respuesta": "Hubo un problema al conectar con el chatbot. Intenta nuevamente.",
             "error": str(e)
         }), 500
 
 
+# Ejecución principal del servidor Flask
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
