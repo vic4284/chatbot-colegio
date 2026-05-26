@@ -22,31 +22,23 @@ def limpiar_texto(texto):
     return texto
 
 
-def entrenar_modelo(df, columna_objetivo, nombre_modelo, vectorizador):
-    df_temp = df.dropna(subset=["pregunta", columna_objetivo])
-
-    X = df_temp["pregunta"]
-    y = df_temp[columna_objetivo].astype(str).str.strip()
-
+def entrenar_modelo(X_vect, y, nombre_modelo):
     X_train, X_test, y_train, y_test = train_test_split(
-        X,
+        X_vect,
         y,
         test_size=0.2,
         random_state=42,
         stratify=y if y.value_counts().min() >= 2 else None
     )
 
-    X_train_vect = vectorizador.fit_transform(X_train)
-    X_test_vect = vectorizador.transform(X_test)
-
     modelo = LogisticRegression(
         max_iter=2000,
         class_weight="balanced"
     )
 
-    modelo.fit(X_train_vect, y_train)
+    modelo.fit(X_train, y_train)
 
-    predicciones = modelo.predict(X_test_vect)
+    predicciones = modelo.predict(X_test)
     precision = accuracy_score(y_test, predicciones)
 
     joblib.dump(modelo, f"{CARPETA_MODELOS}/{nombre_modelo}.pkl")
@@ -69,12 +61,11 @@ df = df.dropna(subset=[
 ])
 
 df["pregunta"] = df["pregunta"].apply(limpiar_texto)
-
 df["emocion"] = df["emocion"].astype(str).str.strip().str.upper()
 df["intencion"] = df["intencion"].astype(str).str.strip()
 df["nivel_emocional"] = df["nivel_emocional"].astype(str).str.strip().str.upper()
-df["recomendacion"] = df["recomendacion"].astype(str).str.strip()
 
+X = df["pregunta"]
 
 vectorizador = TfidfVectorizer(
     ngram_range=(1, 2),
@@ -83,33 +74,27 @@ vectorizador = TfidfVectorizer(
     sublinear_tf=True
 )
 
+X_vect = vectorizador.fit_transform(X)
+
 joblib.dump(vectorizador, f"{CARPETA_MODELOS}/vectorizador.pkl")
 
-
-# Modelo 1: emoción detectada
 precision_emocion = entrenar_modelo(
-    df,
-    "emocion",
-    "modelo_emocion",
-    vectorizador
+    X_vect,
+    df["emocion"],
+    "modelo_emocion"
 )
 
-# Modelo 2: intención detectada
 precision_intencion = entrenar_modelo(
-    df,
-    "intencion",
-    "modelo_intencion",
-    vectorizador
+    X_vect,
+    df["intencion"],
+    "modelo_intencion"
 )
 
-# Modelo 3: nivel emocional
 precision_nivel = entrenar_modelo(
-    df,
-    "nivel_emocional",
-    "modelo_nivel_emocional",
-    vectorizador
+    X_vect,
+    df["nivel_emocional"],
+    "modelo_nivel_emocional"
 )
-
 
 print("Entrenamiento finalizado correctamente")
 print("Resumen de precisión:")
