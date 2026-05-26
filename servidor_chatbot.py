@@ -61,7 +61,7 @@ Estilo:
 def inicio():
     return jsonify({
         "estado": "activo",
-        "mensaje": "Servidor del chatbot SEA funcionando correctamente001"
+        "mensaje": "Servidor del chatbot SEA funcionando correctamente002"
     })
 
 # Endpoint principal del chatbot
