@@ -1,9 +1,13 @@
 from flask import Flask, request, jsonify
 from openai import OpenAI
+
+from conexion.base_datos import guardar_analisis_emocional
+
 import os
 import re
 import joblib
 import numpy as np
+
 
 # Inicialización del servidor Flask
 app = Flask(__name__)
@@ -126,7 +130,7 @@ Importante:
 def inicio():
     return jsonify({
         "estado": "activo",
-        "mensaje": "Servidor del chatbot SEA funcionando con OpenAI y NLP emocional001"
+        "mensaje": "Servidor del chatbot SEA funcionando con OpenAI, NLP emocional y registro en BD"
     })
 
 
@@ -134,7 +138,9 @@ def inicio():
 def chatbot():
     try:
         data = request.get_json()
+
         mensaje = data.get("mensaje", "").strip()
+        id_usuario = data.get("id_usuario")
 
         if not mensaje:
             return jsonify({
@@ -145,7 +151,9 @@ def chatbot():
                 "puntaje_confianza": 0,
                 "recomendacion": "Solicitar al estudiante que escriba un mensaje.",
                 "categoria": "general",
-                "nivel_alerta": "ESTABLE"
+                "nivel_alerta": "ESTABLE",
+                "guardado_bd": False,
+                "mensaje_bd": "No se guardó porque el mensaje estaba vacío"
             })
 
         analisis = analizar_mensaje(mensaje)
@@ -154,6 +162,19 @@ def chatbot():
             analisis["emocion"],
             analisis["nivel_emocional"]
         )
+
+        guardado_bd = False
+        mensaje_bd = "No se recibió id_usuario"
+
+        if id_usuario:
+            guardado_bd, mensaje_bd = guardar_analisis_emocional(
+                id_usuario=id_usuario,
+                emocion=analisis["emocion"],
+                intencion=analisis["intencion"],
+                nivel_emocional=analisis["nivel_emocional"],
+                puntaje_confianza=analisis["puntaje_confianza"],
+                recomendacion=recomendacion
+            )
 
         entrada_usuario = f"""
 Mensaje del estudiante:
@@ -184,7 +205,9 @@ Prioriza que el estudiante se sienta escuchado y quiera continuar hablando.
             "puntaje_confianza": analisis["puntaje_confianza"],
             "recomendacion": recomendacion,
             "categoria": analisis["intencion"],
-            "nivel_alerta": analisis["nivel_emocional"]
+            "nivel_alerta": analisis["nivel_emocional"],
+            "guardado_bd": guardado_bd,
+            "mensaje_bd": mensaje_bd
         })
 
     except Exception as e:
