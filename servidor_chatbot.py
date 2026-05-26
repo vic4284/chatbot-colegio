@@ -130,7 +130,7 @@ Importante:
 def inicio():
     return jsonify({
         "estado": "activo",
-        "mensaje": "Servidor del chatbot SEA funcionando con OpenAI, NLP emocional y registro en BD"
+        "mensaje": "Servidor del chatbot SEA funcionando con OpenAI, NLP emocional y registro en BD002"
     })
 
 
@@ -138,6 +138,12 @@ def inicio():
 def chatbot():
     try:
         data = request.get_json()
+
+        if data is None:
+            return jsonify({
+                "respuesta": "No se recibió información válida.",
+                "error": "JSON vacío o incorrecto"
+            }), 400
 
         mensaje = data.get("mensaje", "").strip()
         id_usuario = data.get("id_usuario")
@@ -167,14 +173,18 @@ def chatbot():
         mensaje_bd = "No se recibió id_usuario"
 
         if id_usuario:
-            guardado_bd, mensaje_bd = guardar_analisis_emocional(
-                id_usuario=id_usuario,
-                emocion=analisis["emocion"],
-                intencion=analisis["intencion"],
-                nivel_emocional=analisis["nivel_emocional"],
-                puntaje_confianza=analisis["puntaje_confianza"],
-                recomendacion=recomendacion
-            )
+            try:
+                guardado_bd, mensaje_bd = guardar_analisis_emocional(
+                    id_usuario=id_usuario,
+                    emocion=analisis["emocion"],
+                    intencion=analisis["intencion"],
+                    nivel_emocional=analisis["nivel_emocional"],
+                    puntaje_confianza=analisis["puntaje_confianza"],
+                    recomendacion=recomendacion
+                )
+            except Exception as error_bd:
+                guardado_bd = False
+                mensaje_bd = f"Error al guardar en BD: {str(error_bd)}"
 
         entrada_usuario = f"""
 Mensaje del estudiante:
