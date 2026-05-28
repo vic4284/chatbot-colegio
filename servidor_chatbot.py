@@ -2,24 +2,27 @@ from flask import Flask, request, jsonify
 from openai import OpenAI
 
 from conexion.base_datos import guardar_analisis_emocional
+from nlp.reglas_emocionales import analizar_por_reglas
 
 import os
 import re
 import joblib
 import numpy as np
+import pandas as pd
+
+from sklearn.metrics.pairwise import cosine_similarity
 
 
-# Inicialización del servidor Flask
 app = Flask(__name__)
 
-# Conexión con OpenAI mediante variable de entorno
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-# Cargar modelos NLP propios
 vectorizador = joblib.load("modelos/vectorizador.pkl")
 modelo_emocion = joblib.load("modelos/modelo_emocion.pkl")
 modelo_intencion = joblib.load("modelos/modelo_intencion.pkl")
 modelo_nivel = joblib.load("modelos/modelo_nivel_emocional.pkl")
+
+df_dataset = pd.read_csv("dataset/dataset_limpio.csv", encoding="utf-8-sig")
 
 
 def limpiar_texto(texto):
@@ -29,13 +32,41 @@ def limpiar_texto(texto):
     return texto
 
 
+df_dataset["pregunta"] = df_dataset["pregunta"].apply(limpiar_texto)
+matriz_dataset = vectorizador.transform(df_dataset["pregunta"])
+
+
 def obtener_confianza(modelo, texto_vectorizado):
     probabilidades = modelo.predict_proba(texto_vectorizado)[0]
     confianza = float(np.max(probabilidades))
     return round(confianza * 100, 2)
 
 
+def analizar_por_similitud(mensaje_vectorizado):
+    similitudes = cosine_similarity(mensaje_vectorizado, matriz_dataset)[0]
+    indice = int(np.argmax(similitudes))
+    similitud = float(similitudes[indice])
+
+    if similitud >= 0.45:
+        fila = df_dataset.iloc[indice]
+
+        return {
+            "emocion": str(fila["emocion"]).strip().upper(),
+            "intencion": str(fila["intencion"]).strip(),
+            "nivel_emocional": str(fila["nivel_emocional"]).strip().upper(),
+            "puntaje_confianza": round(similitud * 100, 2),
+            "origen": "similitud_dataset"
+        }
+
+    return None
+
+
 def analizar_mensaje(mensaje):
+    resultado_regla = analizar_por_reglas(mensaje)
+
+    if resultado_regla:
+        return resultado_regla
+
     mensaje_limpio = limpiar_texto(mensaje)
     mensaje_vectorizado = vectorizador.transform([mensaje_limpio])
 
@@ -52,11 +83,18 @@ def analizar_mensaje(mensaje):
         2
     )
 
+    if puntaje_confianza < 85:
+        resultado_similitud = analizar_por_similitud(mensaje_vectorizado)
+
+        if resultado_similitud:
+            return resultado_similitud
+
     return {
         "emocion": emocion,
         "intencion": intencion,
         "nivel_emocional": nivel_emocional,
-        "puntaje_confianza": puntaje_confianza
+        "puntaje_confianza": puntaje_confianza,
+        "origen": "modelo"
     }
 
 
@@ -130,7 +168,7 @@ Importante:
 def inicio():
     return jsonify({
         "estado": "activo",
-        "mensaje": "Servidor del chatbot SEA funcionando con OpenAI, NLP emocional y registro en BD003"
+        "mensaje": "Servidor SEA funcionando con reglas, modelo NLP y similitud de dataset"
     })
 
 
@@ -158,6 +196,8 @@ def chatbot():
                 "recomendacion": "Solicitar al estudiante que escriba un mensaje.",
                 "categoria": "general",
                 "nivel_alerta": "ESTABLE",
+                "estado_seguimiento": "PENDIENTE",
+                "origen_analisis": "validacion",
                 "guardado_bd": False,
                 "mensaje_bd": "No se guardó porque el mensaje estaba vacío"
             })
@@ -190,7 +230,7 @@ def chatbot():
 Mensaje del estudiante:
 {mensaje}
 
-Análisis emocional detectado por el modelo NLP propio:
+Análisis emocional detectado:
 - Emoción: {analisis["emocion"]}
 - Intención: {analisis["intencion"]}
 - Nivel emocional: {analisis["nivel_emocional"]}
@@ -216,6 +256,8 @@ Prioriza que el estudiante se sienta escuchado y quiera continuar hablando.
             "recomendacion": recomendacion,
             "categoria": analisis["intencion"],
             "nivel_alerta": analisis["nivel_emocional"],
+            "estado_seguimiento": "PENDIENTE",
+            "origen_analisis": analisis.get("origen", "modelo"),
             "guardado_bd": guardado_bd,
             "mensaje_bd": mensaje_bd
         })

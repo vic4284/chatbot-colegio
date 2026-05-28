@@ -5,6 +5,7 @@ import os
 
 from sklearn.model_selection import train_test_split
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.pipeline import FeatureUnion
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score
 
@@ -32,9 +33,9 @@ def entrenar_modelo(X_vect, y, nombre_modelo):
     )
 
     modelo = LogisticRegression(
-        max_iter=2000,
-        class_weight="balanced"
-    )
+    max_iter=3000,
+    class_weight="balanced"
+)
 
     modelo.fit(X_train, y_train)
 
@@ -67,34 +68,30 @@ df["nivel_emocional"] = df["nivel_emocional"].astype(str).str.strip().str.upper(
 
 X = df["pregunta"]
 
-vectorizador = TfidfVectorizer(
-    ngram_range=(1, 2),
-    min_df=1,
-    strip_accents="unicode",
-    sublinear_tf=True
-)
+vectorizador = FeatureUnion([
+    ("tfidf_palabras", TfidfVectorizer(
+        analyzer="word",
+        ngram_range=(1, 2),
+        min_df=1,
+        strip_accents="unicode",
+        sublinear_tf=True
+    )),
+    ("tfidf_caracteres", TfidfVectorizer(
+        analyzer="char_wb",
+        ngram_range=(3, 5),
+        min_df=1,
+        strip_accents="unicode",
+        sublinear_tf=True
+    ))
+])
 
 X_vect = vectorizador.fit_transform(X)
 
 joblib.dump(vectorizador, f"{CARPETA_MODELOS}/vectorizador.pkl")
 
-precision_emocion = entrenar_modelo(
-    X_vect,
-    df["emocion"],
-    "modelo_emocion"
-)
-
-precision_intencion = entrenar_modelo(
-    X_vect,
-    df["intencion"],
-    "modelo_intencion"
-)
-
-precision_nivel = entrenar_modelo(
-    X_vect,
-    df["nivel_emocional"],
-    "modelo_nivel_emocional"
-)
+precision_emocion = entrenar_modelo(X_vect, df["emocion"], "modelo_emocion")
+precision_intencion = entrenar_modelo(X_vect, df["intencion"], "modelo_intencion")
+precision_nivel = entrenar_modelo(X_vect, df["nivel_emocional"], "modelo_nivel_emocional")
 
 print("Entrenamiento finalizado correctamente")
 print("Resumen de precisión:")
