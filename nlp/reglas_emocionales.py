@@ -10,46 +10,139 @@ def limpiar_basico(texto):
     return texto
 
 
+def contiene(texto, palabras):
+    return any(palabra in texto for palabra in palabras)
+
+
 def analizar_por_reglas(mensaje):
     texto = limpiar_basico(mensaje)
 
-    reglas = [
-        (["hola", "buenos dias", "buenas tardes", "buenas noches"], "NEUTRAL", "saludo", "ESTABLE", 98.0),
+    # 1. RIESGO CRÍTICO
+    if contiene(texto, [
+        "no quiero vivir", "quiero desaparecer", "quiero morirme",
+        "quiero hacerme daño", "me quiero hacer daño", "no aguanto mas",
+        "ya no quiero seguir", "quiero lastimarme"
+    ]):
+        return {
+            "emocion": "RIESGO_EMOCIONAL",
+            "intencion": "riesgo_autolesion",
+            "nivel_emocional": "CRITICO",
+            "puntaje_confianza": 99.0,
+            "origen": "regla_prioritaria"
+        }
 
-        (["bien", "muy bien", "bastante bien", "todo bien", "me siento bien", "estoy bien", "excelente", "feliz", "contento"],
-         "FELICIDAD", "expresar_bienestar", "ESTABLE", 97.0),
+    # 2. SALUDO / CONVERSACIÓN NORMAL
+    if contiene(texto, [
+        "hola", "buenos dias", "buenas tardes", "buenas noches",
+        "solo pase a saludar", "solo pase a saludar", "vine a saludar",
+        "solo saludo", "solo queria saludar"
+    ]):
+        return {
+            "emocion": "NEUTRAL",
+            "intencion": "saludo",
+            "nivel_emocional": "ESTABLE",
+            "puntaje_confianza": 98.0,
+            "origen": "regla"
+        }
 
-        (["normal", "tranquilo", "estoy tranquilo", "todo tranquilo", "mas o menos bien"],
-         "NEUTRAL", "expresar_estado", "ESTABLE", 94.0),
+    # 3. BIENESTAR
+    if contiene(texto, [
+        "bien", "muy bien", "bastante bien", "todo bien",
+        "me siento bien", "estoy bien", "excelente", "feliz",
+        "contento", "tranquilo", "todo tranquilo"
+    ]):
+        return {
+            "emocion": "FELICIDAD",
+            "intencion": "expresar_bienestar",
+            "nivel_emocional": "ESTABLE",
+            "puntaje_confianza": 97.0,
+            "origen": "regla"
+        }
 
-        (["me siento mal", "estoy mal", "me siento triste", "estoy triste", "quiero llorar", "me siento solo"],
-         "TRISTEZA", "buscar_apoyo", "MODERADO", 96.0),
+    # 4. CONFLICTO CON PROFESOR
+    if contiene(texto, [
+        "mi profesor me molesta", "el profesor me molesta",
+        "mi docente me molesta", "mi profesor me trata mal",
+        "el profesor me trata mal", "mi profesor me grita",
+        "mi docente me grita", "mi profesor me humilla"
+    ]):
+        return {
+            "emocion": "ENOJO",
+            "intencion": "conflicto_docente",
+            "nivel_emocional": "MODERADO",
+            "puntaje_confianza": 97.0,
+            "origen": "regla"
+        }
 
-        (["estoy nervioso", "tengo ansiedad", "me siento ansioso", "me preocupa mucho", "tengo miedo al examen"],
-         "ANSIEDAD", "buscar_calma", "MODERADO", 96.0),
+    # 5. CONFLICTO CON COMPAÑEROS
+    if contiene(texto, [
+        "me pelee con mis compañeros", "me pelee con un compañero",
+        "discutil con mis compañeros", "me enoje con mis compañeros",
+        "mis compañeros me molestan", "mis compañeros me insultan",
+        "se burlan de mi", "me hacen bullying", "me trataron mal en clase"
+    ]):
+        return {
+            "emocion": "ENOJO",
+            "intencion": "conflicto_companeros",
+            "nivel_emocional": "MODERADO",
+            "puntaje_confianza": 97.0,
+            "origen": "regla"
+        }
 
-        (["estoy estresado", "tengo muchas tareas", "no me alcanza el tiempo", "estoy saturado", "mucha presion"],
-         "ESTRES", "sobrecarga_academica", "MODERADO", 96.0),
+    # 6. TRISTEZA
+    if contiene(texto, [
+        "me siento mal", "estoy mal", "me siento triste",
+        "estoy triste", "quiero llorar", "me siento solo",
+        "nadie me entiende", "no tengo ganas de nada"
+    ]):
+        return {
+            "emocion": "TRISTEZA",
+            "intencion": "buscar_apoyo",
+            "nivel_emocional": "MODERADO",
+            "puntaje_confianza": 96.0,
+            "origen": "regla"
+        }
 
-        (["mi profesor me molesta", "el profesor me molesta", "mi docente me molesta", "mi profesor me trata mal"],
-         "ENOJO", "conflicto_docente", "MODERADO", 97.0),
+    # 7. ANSIEDAD
+    if contiene(texto, [
+        "estoy nervioso", "tengo ansiedad", "me siento ansioso",
+        "me preocupa mucho", "tengo miedo al examen",
+        "no puedo dormir", "me angustia"
+    ]):
+        return {
+            "emocion": "ANSIEDAD",
+            "intencion": "buscar_calma",
+            "nivel_emocional": "MODERADO",
+            "puntaje_confianza": 96.0,
+            "origen": "regla"
+        }
 
-        (["mis compañeros me molestan", "se burlan de mi", "me hacen bullying", "me insultan"],
-         "MIEDO", "temor_bullying", "ALTO", 97.0),
+    # 8. ESTRÉS
+    if contiene(texto, [
+        "estoy estresado", "tengo muchas tareas",
+        "no me alcanza el tiempo", "estoy saturado",
+        "mucha presion", "demasiadas tareas"
+    ]):
+        return {
+            "emocion": "ESTRES",
+            "intencion": "sobrecarga_academica",
+            "nivel_emocional": "MODERADO",
+            "puntaje_confianza": 96.0,
+            "origen": "regla"
+        }
 
-        (["no quiero vivir", "quiero desaparecer", "quiero hacerme daño", "no aguanto mas", "ya no quiero seguir"],
-         "RIESGO_EMOCIONAL", "riesgo_autolesion", "CRITICO", 99.0),
-    ]
-
-    for patrones, emocion, intencion, nivel, confianza in reglas:
-        for patron in patrones:
-            if patron in texto:
-                return {
-                    "emocion": emocion,
-                    "intencion": intencion,
-                    "nivel_emocional": nivel,
-                    "puntaje_confianza": confianza,
-                    "origen": "regla"
-                }
+    # 9. DESMOTIVACIÓN
+    if contiene(texto, [
+        "no quiero estudiar", "ya no tengo ganas de estudiar",
+        "no tengo motivacion", "me da igual estudiar",
+        "no me interesa nada", "perdi las ganas"
+    ]):
+        return {
+            "emocion": "DESMOTIVACION",
+            "intencion": "falta_interes",
+            "nivel_emocional": "MODERADO",
+            "puntaje_confianza": 96.0,
+            "origen": "regla"
+        }
 
     return None
