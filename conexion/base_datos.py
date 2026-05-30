@@ -138,3 +138,49 @@ def guardar_analisis_emocional(
     conexion.close()
 
     return True, "Análisis emocional guardado correctamente"
+
+
+def guardar_memoria_chatbot(id_usuario, rol, mensaje):
+    conexion = obtener_conexion()
+    cursor = conexion.cursor()
+
+    sql = """
+        INSERT INTO memoria_chatbot (
+            id_usuario,
+            rol,
+            mensaje,
+            fecha_registro
+        )
+        VALUES (%s, %s, %s, NOW())
+    """
+
+    cursor.execute(sql, (id_usuario, rol, mensaje))
+    conexion.commit()
+
+    cursor.close()
+    conexion.close()
+
+    return True
+
+
+def obtener_memoria_chatbot(id_usuario, limite=10):
+    conexion = obtener_conexion()
+    cursor = conexion.cursor(dictionary=True)
+
+    sql = """
+        SELECT rol, mensaje
+        FROM memoria_chatbot
+        WHERE id_usuario = %s
+        ORDER BY fecha_registro DESC
+        LIMIT %s
+    """
+
+    cursor.execute(sql, (id_usuario, limite))
+    resultados = cursor.fetchall()
+
+    cursor.close()
+    conexion.close()
+
+    resultados.reverse()
+
+    return resultados
