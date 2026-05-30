@@ -208,7 +208,7 @@ Importante:
 def inicio():
     return jsonify({
         "estado": "activo",
-        "mensaje": "Servidor SEA funcionando con reglas, modelo NLP y similitud de dataset001"
+        "mensaje": "Servidor SEA funcionando con reglas, modelo NLP y similitud de dataset004"
     })
 
 
