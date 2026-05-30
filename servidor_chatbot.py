@@ -1,3 +1,7 @@
+
+# IMPORTACIONES
+
+
 from flask import Flask, request, jsonify
 from openai import OpenAI
 
@@ -12,10 +16,16 @@ import pandas as pd
 
 from sklearn.metrics.pairwise import cosine_similarity
 
+# INICIALIZACIÓN
 
 app = Flask(__name__)
 
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+
+# =========================
+# CARGA DE MODELOS
+# =========================
 
 vectorizador = joblib.load("modelos/vectorizador.pkl")
 modelo_emocion = joblib.load("modelos/modelo_emocion.pkl")
@@ -25,6 +35,10 @@ modelo_nivel = joblib.load("modelos/modelo_nivel_emocional.pkl")
 df_dataset = pd.read_csv("dataset/dataset_limpio.csv", encoding="utf-8-sig")
 
 
+
+# LIMPIEZA DE TEXTO
+
+
 def limpiar_texto(texto):
     texto = str(texto).lower().strip()
     texto = re.sub(r'[^\w\s+\-*/]', ' ', texto)
@@ -32,14 +46,23 @@ def limpiar_texto(texto):
     return texto
 
 
+# VECTORIZACIÓN DEL DATASET
+
+
 df_dataset["pregunta"] = df_dataset["pregunta"].apply(limpiar_texto)
 matriz_dataset = vectorizador.transform(df_dataset["pregunta"])
+
+
+# CONFIANZA DEL MODELO
 
 
 def obtener_confianza(modelo, texto_vectorizado):
     probabilidades = modelo.predict_proba(texto_vectorizado)[0]
     confianza = float(np.max(probabilidades))
     return round(confianza * 100, 2)
+
+
+# SIMILITUD CON DATASET
 
 
 def analizar_por_similitud(mensaje_vectorizado):
@@ -61,12 +84,18 @@ def analizar_por_similitud(mensaje_vectorizado):
     return None
 
 
+
+# ANÁLISIS EMOCIONAL
+
+
 def analizar_mensaje(mensaje):
+    # Primero usa reglas directas
     resultado_regla = analizar_por_reglas(mensaje)
 
     if resultado_regla:
         return resultado_regla
 
+    # Luego usa modelos NLP
     mensaje_limpio = limpiar_texto(mensaje)
     mensaje_vectorizado = vectorizador.transform([mensaje_limpio])
 
@@ -78,11 +107,13 @@ def analizar_mensaje(mensaje):
     confianza_intencion = obtener_confianza(modelo_intencion, mensaje_vectorizado)
     confianza_nivel = obtener_confianza(modelo_nivel, mensaje_vectorizado)
 
+    # Promedio de confianza
     puntaje_confianza = round(
         (confianza_emocion + confianza_intencion + confianza_nivel) / 3,
         2
     )
 
+    # Si la confianza es baja, busca frase similar
     if puntaje_confianza < 85:
         resultado_similitud = analizar_por_similitud(mensaje_vectorizado)
 
@@ -96,6 +127,8 @@ def analizar_mensaje(mensaje):
         "puntaje_confianza": puntaje_confianza,
         "origen": "modelo"
     }
+
+# RECOMENDACIÓN
 
 
 def generar_recomendacion(emocion, nivel_emocional):
@@ -127,6 +160,10 @@ def generar_recomendacion(emocion, nivel_emocional):
         return "Reforzar positivamente el estado emocional y motivar a mantener hábitos saludables."
 
     return "Responder con orientación general y continuar la conversación."
+
+
+
+# PERSONALIDAD DEL CHATBOT
 
 
 PERSONALIDAD_CHATBOT = """
@@ -164,6 +201,9 @@ Importante:
 """
 
 
+# RUTA DE PRUEBA
+
+
 @app.route("/", methods=["GET"])
 def inicio():
     return jsonify({
@@ -172,9 +212,14 @@ def inicio():
     })
 
 
+
+# ENDPOINT PRINCIPAL
+
+
 @app.route("/chatbot", methods=["POST"])
 def chatbot():
     try:
+        # Leer datos enviados desde Android
         data = request.get_json()
 
         if data is None:
@@ -186,6 +231,7 @@ def chatbot():
         mensaje = data.get("mensaje", "").strip()
         id_usuario = data.get("id_usuario")
 
+        # Validar mensaje vacío
         if not mensaje:
             return jsonify({
                 "respuesta": "Escribe un mensaje para poder ayudarte.",
@@ -202,8 +248,10 @@ def chatbot():
                 "mensaje_bd": "No se guardó porque el mensaje estaba vacío"
             })
 
+        # Analizar mensaje del estudiante
         analisis = analizar_mensaje(mensaje)
 
+        # Crear recomendación
         recomendacion = generar_recomendacion(
             analisis["emocion"],
             analisis["nivel_emocional"]
@@ -212,6 +260,7 @@ def chatbot():
         guardado_bd = False
         mensaje_bd = "No se recibió id_usuario"
 
+        # Guardar análisis en la base de datos
         if id_usuario:
             try:
                 guardado_bd, mensaje_bd = guardar_analisis_emocional(
@@ -226,6 +275,7 @@ def chatbot():
                 guardado_bd = False
                 mensaje_bd = f"Error al guardar en BD: {str(error_bd)}"
 
+        # Contexto para OpenAI
         entrada_usuario = f"""
 Mensaje del estudiante:
 {mensaje}
@@ -241,12 +291,14 @@ No menciones porcentajes ni detalles técnicos del modelo.
 Prioriza que el estudiante se sienta escuchado y quiera continuar hablando.
 """
 
+        # Generar respuesta conversacional
         respuesta = client.responses.create(
             model="gpt-5.4-mini",
             instructions=PERSONALIDAD_CHATBOT,
             input=entrada_usuario
         )
 
+        # Respuesta enviada a Android
         return jsonify({
             "respuesta": respuesta.output_text,
             "emocion": analisis["emocion"],
@@ -263,10 +315,15 @@ Prioriza que el estudiante se sienta escuchado y quiera continuar hablando.
         })
 
     except Exception as e:
+        # Control de errores generales
         return jsonify({
             "respuesta": "Hubo un problema al conectar con el chatbot. Intenta nuevamente.",
             "error": str(e)
         }), 500
+
+
+
+# EJECUCIÓN LOCAL
 
 
 if __name__ == "__main__":

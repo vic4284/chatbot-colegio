@@ -1,100 +1,167 @@
-import pandas as pd
-import joblib
 import re
-import os
-
-from sklearn.model_selection import train_test_split
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.pipeline import FeatureUnion
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import accuracy_score
 
 
-RUTA_DATASET = "dataset/dataset_limpio.csv"
-CARPETA_MODELOS = "modelos"
-
-os.makedirs(CARPETA_MODELOS, exist_ok=True)
-
-
-def limpiar_texto(texto):
+def limpiar_basico(texto):
     texto = str(texto).lower().strip()
-    texto = re.sub(r'[^\w\s+\-*/]', ' ', texto)
+    texto = texto.replace("á", "a").replace("é", "e").replace("í", "i")
+    texto = texto.replace("ó", "o").replace("ú", "u").replace("ñ", "n")
+    texto = re.sub(r'[^\w\s]', ' ', texto)
     texto = re.sub(r'\s+', ' ', texto)
     return texto
 
 
-def entrenar_modelo(X_vect, y, nombre_modelo):
-    X_train, X_test, y_train, y_test = train_test_split(
-        X_vect,
-        y,
-        test_size=0.2,
-        random_state=42,
-        stratify=y if y.value_counts().min() >= 2 else None
-    )
-
-    modelo = LogisticRegression(
-    max_iter=3000,
-    class_weight="balanced"
-)
-
-    modelo.fit(X_train, y_train)
-
-    predicciones = modelo.predict(X_test)
-    precision = accuracy_score(y_test, predicciones)
-
-    joblib.dump(modelo, f"{CARPETA_MODELOS}/{nombre_modelo}.pkl")
-
-    print(f"Modelo {nombre_modelo} entrenado correctamente")
-    print(f"Precisión {nombre_modelo}: {round(precision * 100, 2)} %")
-    print("------------------------------------")
-
-    return precision
+def tiene(texto, palabras):
+    return any(palabra in texto for palabra in palabras)
 
 
-df = pd.read_csv(RUTA_DATASET, encoding="utf-8-sig")
+def analizar_por_reglas(mensaje):
+    texto = limpiar_basico(mensaje)
 
-df = df.dropna(subset=[
-    "pregunta",
-    "emocion",
-    "intencion",
-    "nivel_emocional",
-    "recomendacion"
-])
+    # RIESGO CRÍTICO
+    if tiene(texto, [
+        "quiero desaparecer", "no quiero vivir", "quiero morirme",
+        "quiero hacerme daño", "me quiero hacer daño", "quiero lastimarme",
+        "no aguanto mas", "ya no quiero seguir"
+    ]):
+        return {
+            "emocion": "RIESGO_EMOCIONAL",
+            "intencion": "riesgo_autolesion",
+            "nivel_emocional": "CRITICO",
+            "puntaje_confianza": 99.0,
+            "origen": "regla_prioritaria"
+        }
 
-df["pregunta"] = df["pregunta"].apply(limpiar_texto)
-df["emocion"] = df["emocion"].astype(str).str.strip().str.upper()
-df["intencion"] = df["intencion"].astype(str).str.strip()
-df["nivel_emocional"] = df["nivel_emocional"].astype(str).str.strip().str.upper()
+    # SALUDOS
+    if tiene(texto, [
+        "hola", "buenos dias", "buenas tardes", "buenas noches",
+        "solo pase a saludar", "vine a saludar", "solo queria saludar",
+        "solo saludo", "pasaba a saludar"
+    ]):
+        return {
+            "emocion": "NEUTRAL",
+            "intencion": "saludo",
+            "nivel_emocional": "ESTABLE",
+            "puntaje_confianza": 98.0,
+            "origen": "regla"
+        }
 
-X = df["pregunta"]
+    # BIENESTAR
+    if tiene(texto, [
+        "estoy bien", "me siento bien", "bastante bien", "muy bien",
+        "todo bien", "super bien", "excelente", "feliz", "contento",
+        "alegre", "tranquilo", "todo tranquilo"
+    ]):
+        return {
+            "emocion": "FELICIDAD",
+            "intencion": "expresar_bienestar",
+            "nivel_emocional": "ESTABLE",
+            "puntaje_confianza": 97.0,
+            "origen": "regla"
+        }
 
-vectorizador = FeatureUnion([
-    ("tfidf_palabras", TfidfVectorizer(
-        analyzer="word",
-        ngram_range=(1, 2),
-        min_df=1,
-        strip_accents="unicode",
-        sublinear_tf=True
-    )),
-    ("tfidf_caracteres", TfidfVectorizer(
-        analyzer="char_wb",
-        ngram_range=(3, 5),
-        min_df=1,
-        strip_accents="unicode",
-        sublinear_tf=True
-    ))
-])
+    # CONFLICTO CON PROFESOR
+    if tiene(texto, [
+        "profesor me molesta", "docente me molesta",
+        "profesor me trata mal", "docente me trata mal",
+        "profesor me grita", "docente me grita",
+        "profesor me humilla", "docente me humilla",
+        "mi profesor me molesta", "mi profesor me trata mal"
+    ]):
+        return {
+            "emocion": "ENOJO",
+            "intencion": "conflicto_docente",
+            "nivel_emocional": "MODERADO",
+            "puntaje_confianza": 97.0,
+            "origen": "regla"
+        }
 
-X_vect = vectorizador.fit_transform(X)
+    # CONFLICTO CON COMPAÑEROS
+    if tiene(texto, [
+        "me pelee con mis compañeros", "me pelee con un compañero",
+        "pelee con mis compañeros", "pelea con mis compañeros",
+        "mis compañeros me molestan", "mis compañeros me insultan",
+        "se burlan de mi", "me hacen bullying", "me trataron mal",
+        "mis compañeros me tratan mal"
+    ]):
+        return {
+            "emocion": "ENOJO",
+            "intencion": "conflicto_companeros",
+            "nivel_emocional": "MODERADO",
+            "puntaje_confianza": 97.0,
+            "origen": "regla"
+        }
 
-joblib.dump(vectorizador, f"{CARPETA_MODELOS}/vectorizador.pkl")
+    # MIEDO / BULLYING
+    if tiene(texto, [
+        "tengo miedo de ir al colegio", "me da miedo ir al colegio",
+        "me amenazan", "me siento amenazado", "tengo miedo",
+        "me asusta", "no quiero ir al recreo"
+    ]):
+        return {
+            "emocion": "MIEDO",
+            "intencion": "buscar_seguridad",
+            "nivel_emocional": "ALTO",
+            "puntaje_confianza": 97.0,
+            "origen": "regla"
+        }
 
-precision_emocion = entrenar_modelo(X_vect, df["emocion"], "modelo_emocion")
-precision_intencion = entrenar_modelo(X_vect, df["intencion"], "modelo_intencion")
-precision_nivel = entrenar_modelo(X_vect, df["nivel_emocional"], "modelo_nivel_emocional")
+    # TRISTEZA
+    if tiene(texto, [
+        "me siento mal", "estoy mal", "me siento triste",
+        "estoy triste", "quiero llorar", "me siento solo",
+        "nadie me entiende", "no tengo ganas de nada",
+        "me siento vacio", "me siento apagado"
+    ]):
+        return {
+            "emocion": "TRISTEZA",
+            "intencion": "buscar_apoyo",
+            "nivel_emocional": "MODERADO",
+            "puntaje_confianza": 96.0,
+            "origen": "regla"
+        }
 
-print("Entrenamiento finalizado correctamente")
-print("Resumen de precisión:")
-print("Emoción:", round(precision_emocion * 100, 2), "%")
-print("Intención:", round(precision_intencion * 100, 2), "%")
-print("Nivel emocional:", round(precision_nivel * 100, 2), "%")
+    # ANSIEDAD
+    if tiene(texto, [
+        "estoy nervioso", "me siento nervioso", "tengo ansiedad",
+        "me siento ansioso", "me preocupa mucho", "me angustia",
+        "no puedo dormir", "tengo miedo al examen",
+        "me da miedo exponer"
+    ]):
+        return {
+            "emocion": "ANSIEDAD",
+            "intencion": "buscar_calma",
+            "nivel_emocional": "MODERADO",
+            "puntaje_confianza": 96.0,
+            "origen": "regla"
+        }
+
+    # ESTRÉS
+    if tiene(texto, [
+        "estoy estresado", "me siento estresado", "tengo muchas tareas",
+        "demasiadas tareas", "no me alcanza el tiempo",
+        "estoy saturado", "mucha presion", "tengo mucha presion"
+    ]):
+        return {
+            "emocion": "ESTRES",
+            "intencion": "sobrecarga_academica",
+            "nivel_emocional": "MODERADO",
+            "puntaje_confianza": 96.0,
+            "origen": "regla"
+        }
+
+    # DESMOTIVACIÓN
+    if tiene(texto, [
+        "no quiero estudiar", "ya no tengo ganas de estudiar",
+        "no tengo motivacion", "me da igual estudiar",
+        "no me interesa nada", "perdi las ganas",
+        "no tengo ganas de hacer tareas"
+    ]):
+        return {
+            "emocion": "DESMOTIVACION",
+            "intencion": "falta_interes",
+            "nivel_emocional": "MODERADO",
+            "puntaje_confianza": 96.0,
+            "origen": "regla"
+        }
+
+    return None
