@@ -23,7 +23,6 @@ from sklearn.metrics.pairwise import cosine_similarity
 # INICIALIZACIÓN
 
 app = Flask(__name__)
-
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
@@ -67,7 +66,7 @@ def analizar_por_similitud(mensaje_vectorizado):
     indice = int(np.argmax(similitudes))
     similitud = float(similitudes[indice])
 
-    if similitud >= 0.45:
+    if similitud >= 0.70:
         fila = df_dataset.iloc[indice]
 
         return {
@@ -83,46 +82,57 @@ def analizar_por_similitud(mensaje_vectorizado):
 
 # ANÁLISIS EMOCIONAL
 
-def analizar_mensaje(mensaje):
-    resultado_regla = analizar_por_reglas(mensaje)
+def analizar_mensaje(texto_analisis):
+    resultado_regla = analizar_por_reglas(texto_analisis)
 
     if resultado_regla:
         return resultado_regla
 
-    mensaje_limpio = limpiar_texto(mensaje)
-    mensaje_vectorizado = vectorizador.transform([mensaje_limpio])
+    texto_limpio = limpiar_texto(texto_analisis)
+    texto_vectorizado = vectorizador.transform([texto_limpio])
 
-    emocion = modelo_emocion.predict(mensaje_vectorizado)[0]
-    intencion = modelo_intencion.predict(mensaje_vectorizado)[0]
-    nivel_emocional = modelo_nivel.predict(mensaje_vectorizado)[0]
+    emocion = modelo_emocion.predict(texto_vectorizado)[0]
+    intencion = modelo_intencion.predict(texto_vectorizado)[0]
+    nivel_emocional = modelo_nivel.predict(texto_vectorizado)[0]
 
-    confianza_emocion = obtener_confianza(modelo_emocion, mensaje_vectorizado)
-    confianza_intencion = obtener_confianza(modelo_intencion, mensaje_vectorizado)
-    confianza_nivel = obtener_confianza(modelo_nivel, mensaje_vectorizado)
+    confianza_emocion = obtener_confianza(modelo_emocion, texto_vectorizado)
+    confianza_intencion = obtener_confianza(modelo_intencion, texto_vectorizado)
+    confianza_nivel = obtener_confianza(modelo_nivel, texto_vectorizado)
 
     puntaje_confianza = round(
         (confianza_emocion + confianza_intencion + confianza_nivel) / 3,
         2
     )
 
-    if puntaje_confianza < 85:
-        resultado_similitud = analizar_por_similitud(mensaje_vectorizado)
+    if puntaje_confianza < 80:
+        resultado_similitud = analizar_por_similitud(texto_vectorizado)
 
-        if resultado_similitud:
+        if resultado_similitud and resultado_similitud["puntaje_confianza"] >= 70:
             return resultado_similitud
+
+        return {
+            "emocion": emocion,
+            "intencion": "requiere_mas_contexto",
+            "nivel_emocional": "ESTABLE",
+            "puntaje_confianza": puntaje_confianza,
+            "origen": "modelo_baja_confianza"
+        }
 
     return {
         "emocion": emocion,
         "intencion": intencion,
         "nivel_emocional": nivel_emocional,
         "puntaje_confianza": puntaje_confianza,
-        "origen": "modelo"
+        "origen": "modelo_contextual"
     }
 
 
 # RECOMENDACIÓN
 
-def generar_recomendacion(emocion, nivel_emocional):
+def generar_recomendacion(emocion, nivel_emocional, intencion):
+    if intencion == "requiere_mas_contexto":
+        return "Solicitar más información al estudiante antes de registrar una alerta emocional definitiva."
+
     if nivel_emocional == "CRITICO":
         return "Activar alerta crítica y recomendar contacto inmediato con psicología o un adulto responsable."
 
@@ -196,7 +206,7 @@ Importante:
 def inicio():
     return jsonify({
         "estado": "activo",
-        "mensaje": "Servidor SEA funcionando con memoria conversacional, reglas, NLP y OpenAI001"
+        "mensaje": "Servidor SEA funcionando con memoria contextual, reglas, NLP y OpenAI00FINAL"
     })
 
 
@@ -232,32 +242,41 @@ def chatbot():
                 "mensaje_bd": "No se guardó porque el mensaje estaba vacío"
             })
 
-        # Guardar mensaje del estudiante en memoria
         try:
             guardar_mensaje_usuario(id_usuario, mensaje)
         except Exception:
             pass
 
-        # Obtener historial reciente
         try:
-            historial_chatbot = construir_historial_chatbot(id_usuario, limite=10)
+            historial_chatbot = construir_historial_chatbot(id_usuario, limite=8)
         except Exception:
             historial_chatbot = ""
 
-        # Analizar mensaje del estudiante
-        analisis = analizar_mensaje(mensaje)
+        texto_para_analisis = f"""
+        Historial reciente de conversación:
+        {historial_chatbot}
 
-        # Crear recomendación
+        Mensaje actual del estudiante:
+        {mensaje}
+        """
+
+        analisis = analizar_mensaje(texto_para_analisis)
+
         recomendacion = generar_recomendacion(
             analisis["emocion"],
-            analisis["nivel_emocional"]
+            analisis["nivel_emocional"],
+            analisis["intencion"]
         )
 
         guardado_bd = False
         mensaje_bd = "No se recibió id_usuario"
 
-        # Guardar análisis emocional en la base de datos
-        if id_usuario:
+        debe_guardar = True
+
+        if analisis["intencion"] == "requiere_mas_contexto":
+            debe_guardar = False
+
+        if id_usuario and debe_guardar:
             try:
                 guardado_bd, mensaje_bd = guardar_analisis_emocional(
                     id_usuario=id_usuario,
@@ -270,8 +289,9 @@ def chatbot():
             except Exception as error_bd:
                 guardado_bd = False
                 mensaje_bd = f"Error al guardar en BD: {str(error_bd)}"
+        elif not debe_guardar:
+            mensaje_bd = "No se guardó como alerta porque requiere más contexto"
 
-        # Contexto para OpenAI con memoria conversacional
         entrada_usuario = f"""
 Historial reciente de conversación:
 {historial_chatbot}
@@ -286,13 +306,18 @@ Análisis emocional detectado:
 - Recomendación interna: {recomendacion}
 
 Responde como SEA siguiendo tu personalidad.
-Usa el historial solo para mantener continuidad de la conversación.
-Si el estudiante mencionó antes su nombre, puedes recordarlo.
-No menciones porcentajes ni detalles técnicos del modelo.
+
+Si la intención es requiere_mas_contexto:
+- No digas porcentajes.
+- No digas que el modelo tiene baja confianza.
+- Haz preguntas claras para entender mejor cómo se siente el estudiante.
+- Pregunta si el problema viene del colegio, familia, amigos, tareas o algo personal.
+
+Usa el historial para mantener continuidad.
+No menciones detalles técnicos del modelo.
 Prioriza que el estudiante se sienta escuchado y quiera continuar hablando.
 """
 
-        # Generar respuesta conversacional
         respuesta = client.responses.create(
             model="gpt-5.4-mini",
             instructions=PERSONALIDAD_CHATBOT,
@@ -301,7 +326,6 @@ Prioriza que el estudiante se sienta escuchado y quiera continuar hablando.
 
         respuesta_texto = respuesta.output_text
 
-        # Guardar respuesta del chatbot en memoria
         try:
             guardar_respuesta_bot(id_usuario, respuesta_texto)
         except Exception:

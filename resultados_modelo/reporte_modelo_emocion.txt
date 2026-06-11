@@ -22,7 +22,7 @@ RIESGO_EMOCIONAL       1.00      1.00      1.00       110
         accuracy                           1.00      1000
        macro avg       1.00      1.00      1.00      1000
     weighted avg       1.00      1.00      1.00      1000
-
+S
 
 Matriz de confusión:
 [[103   0   0   0   0   0   0   0   0]

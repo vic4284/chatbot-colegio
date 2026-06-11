@@ -5,7 +5,6 @@ Accuracy: 24.1 %
 Precision macro: 25.24 %
 Recall macro: 24.57 %
 F1-score macro: 23.68 %
-
 Reporte de clasificación:
                         precision    recall  f1-score   support
 
@@ -49,7 +48,6 @@ preocupacion_academica       0.14      0.17      0.15        23
               accuracy                           0.24      1000
              macro avg       0.25      0.25      0.24      1000
           weighted avg       0.27      0.24      0.23      1000
-
 
 Matriz de confusión:
 [[2 0 0 ... 0 0 0]
