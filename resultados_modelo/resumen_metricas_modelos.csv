@@ -1,0 +1,4 @@
+﻿modelo,accuracy,precision,recall,f1_score
+modelo_emocion,100.0,100.0,100.0,100.0
+modelo_intencion,24.1,25.24,24.57,23.68
+modelo_nivel_emocional,53.1,55.91,59.33,57.31

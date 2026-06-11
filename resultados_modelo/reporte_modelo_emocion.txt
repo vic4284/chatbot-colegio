@@ -1,0 +1,36 @@
+REPORTE DEL MODELO: modelo_emocion
+============================================================
+
+Accuracy: 100.0 %
+Precision macro: 100.0 %
+Recall macro: 100.0 %
+F1-score macro: 100.0 %
+
+Reporte de clasificación:
+                  precision    recall  f1-score   support
+
+        ANSIEDAD       1.00      1.00      1.00       103
+   DESMOTIVACION       1.00      1.00      1.00       116
+           ENOJO       1.00      1.00      1.00       111
+          ESTRES       1.00      1.00      1.00       109
+       FELICIDAD       1.00      1.00      1.00       114
+           MIEDO       1.00      1.00      1.00       111
+         NEUTRAL       1.00      1.00      1.00       109
+RIESGO_EMOCIONAL       1.00      1.00      1.00       110
+        TRISTEZA       1.00      1.00      1.00       117
+
+        accuracy                           1.00      1000
+       macro avg       1.00      1.00      1.00      1000
+    weighted avg       1.00      1.00      1.00      1000
+
+
+Matriz de confusión:
+[[103   0   0   0   0   0   0   0   0]
+ [  0 116   0   0   0   0   0   0   0]
+ [  0   0 111   0   0   0   0   0   0]
+ [  0   0   0 109   0   0   0   0   0]
+ [  0   0   0   0 114   0   0   0   0]
+ [  0   0   0   0   0 111   0   0   0]
+ [  0   0   0   0   0   0 109   0   0]
+ [  0   0   0   0   0   0   0 110   0]
+ [  0   0   0   0   0   0   0   0 117]]

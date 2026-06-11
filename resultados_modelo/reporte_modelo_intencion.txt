@@ -1,0 +1,61 @@
+REPORTE DEL MODELO: modelo_intencion
+============================================================
+
+Accuracy: 24.1 %
+Precision macro: 25.24 %
+Recall macro: 24.57 %
+F1-score macro: 23.68 %
+
+Reporte de clasificación:
+                        precision    recall  f1-score   support
+
+        agradecimiento       0.67      0.04      0.07        55
+      bajo_rendimiento       0.21      0.19      0.20        26
+          buscar_apoyo       0.38      0.19      0.25        32
+          buscar_calma       0.38      0.29      0.33        28
+     buscar_motivacion       0.35      0.26      0.30        31
+      buscar_seguridad       0.12      0.12      0.12        25
+     cansancio_escolar       0.20      0.20      0.20        30
+       compartir_logro       0.18      0.36      0.24        25
+  conflicto_companeros       0.18      0.23      0.20        26
+     conflicto_docente       0.35      0.20      0.26        30
+      consulta_general       0.22      0.30      0.25        23
+      crisis_emocional       0.15      0.14      0.15        28
+    desahogo_emocional       0.33      0.33      0.33        27
+    desesperanza_grave       0.35      0.48      0.41        27
+             despedida       0.25      0.33      0.29        21
+        duda_academica       0.14      0.14      0.14        21
+     expresar_ansiedad       0.25      0.24      0.24        25
+    expresar_bienestar       0.14      0.15      0.14        27
+expresar_desmotivacion       0.26      0.30      0.28        30
+        expresar_enojo       0.19      0.21      0.20        28
+       expresar_estres       0.21      0.25      0.23        28
+        expresar_miedo       0.20      0.18      0.19        28
+     expresar_tristeza       0.28      0.38      0.32        26
+         falta_interes       0.38      0.46      0.42        28
+           frustracion       0.32      0.33      0.33        27
+          miedo_examen       0.27      0.29      0.28        28
+   motivacion_positiva       0.22      0.28      0.25        29
+  organizacion_estudio       0.05      0.04      0.04        25
+  pedido_ayuda_urgente       0.15      0.11      0.12        28
+preocupacion_academica       0.14      0.17      0.15        23
+     problema_personal       0.32      0.38      0.34        32
+     riesgo_autolesion       0.33      0.33      0.33        27
+                saludo       0.20      0.23      0.21        22
+  sobrecarga_academica       0.17      0.15      0.16        26
+        temor_bullying       0.35      0.29      0.31        28
+        temor_familiar       0.21      0.27      0.24        30
+
+              accuracy                           0.24      1000
+             macro avg       0.25      0.25      0.24      1000
+          weighted avg       0.27      0.24      0.23      1000
+
+
+Matriz de confusión:
+[[2 0 0 ... 0 0 0]
+ [0 5 0 ... 0 0 0]
+ [0 0 6 ... 0 0 0]
+ ...
+ [0 0 0 ... 4 0 0]
+ [0 0 0 ... 0 8 9]
+ [0 0 0 ... 0 6 8]]

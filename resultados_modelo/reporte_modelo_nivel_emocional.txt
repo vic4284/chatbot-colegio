@@ -1,0 +1,28 @@
+REPORTE DEL MODELO: modelo_nivel_emocional
+============================================================
+
+Accuracy: 53.1 %
+Precision macro: 55.91 %
+Recall macro: 59.33 %
+F1-score macro: 57.31 %
+
+Reporte de clasificación:
+              precision    recall  f1-score   support
+
+        ALTO       0.21      0.26      0.23       145
+     CRITICO       0.88      0.99      0.93        90
+     ESTABLE       0.88      1.00      0.94       198
+        LEVE       0.33      0.33      0.33       227
+    MODERADO       0.49      0.39      0.43       340
+
+    accuracy                           0.53      1000
+   macro avg       0.56      0.59      0.57      1000
+weighted avg       0.53      0.53      0.53      1000
+
+
+Matriz de confusión:
+[[ 38  12   0  32  63]
+ [  1  89   0   0   0]
+ [  0   0 198   0   0]
+ [ 51   0  26  75  75]
+ [ 92   0   0 117 131]]
