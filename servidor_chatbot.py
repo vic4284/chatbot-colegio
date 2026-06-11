@@ -196,7 +196,7 @@ Importante:
 def inicio():
     return jsonify({
         "estado": "activo",
-        "mensaje": "Servidor SEA funcionando con memoria conversacional, reglas, NLP y OpenAI001"
+        "mensaje": "Servidor SEA funcionando con memoria conversacional, reglas, NLP y OpenAI0012"
     })
 
 
