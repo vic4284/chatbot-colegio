@@ -14,10 +14,7 @@ from sklearn.metrics import (
     precision_recall_fscore_support
 )
 
-
-# =========================
-# RUTAS DEL PROYECTO
-# =========================
+# Rutas del proyecto
 
 RUTA_DATASET = "dataset/dataset_limpio.csv"
 CARPETA_MODELOS = "modelos"
@@ -26,23 +23,20 @@ CARPETA_RESULTADOS = "resultados_modelo"
 os.makedirs(CARPETA_MODELOS, exist_ok=True)
 os.makedirs(CARPETA_RESULTADOS, exist_ok=True)
 
-
-# =========================
-# LIMPIEZA DE TEXTO
-# =========================
+# Limpieza de texto
 
 def limpiar_texto(texto):
+    # Normaliza el texto antes del entrenamiento
     texto = str(texto).lower().strip()
     texto = re.sub(r'[^\w\s+\-*/]', ' ', texto)
     texto = re.sub(r'\s+', ' ', texto)
     return texto
 
-
-# =========================
-# ENTRENAMIENTO Y EVALUACIÓN
-# =========================
+# Entrenamiento y evaluación del modelo
 
 def entrenar_modelo(X_vect, y, nombre_modelo):
+
+    # División de datos para entrenamiento y prueba
     X_train, X_test, y_train, y_test = train_test_split(
         X_vect,
         y,
@@ -51,15 +45,19 @@ def entrenar_modelo(X_vect, y, nombre_modelo):
         stratify=y if y.value_counts().min() >= 2 else None
     )
 
+    # Modelo de clasificación utilizado
     modelo = LogisticRegression(
         max_iter=3000,
         class_weight="balanced"
     )
 
+    # Entrenamiento del modelo
     modelo.fit(X_train, y_train)
 
+    # Predicciones sobre datos de prueba
     predicciones = modelo.predict(X_test)
 
+    # Métricas de evaluación
     accuracy = accuracy_score(y_test, predicciones)
 
     precision_macro, recall_macro, f1_macro, _ = precision_recall_fscore_support(
@@ -77,8 +75,10 @@ def entrenar_modelo(X_vect, y, nombre_modelo):
 
     matriz = confusion_matrix(y_test, predicciones)
 
+    # Guardar modelo entrenado
     joblib.dump(modelo, f"{CARPETA_MODELOS}/{nombre_modelo}.pkl")
 
+    # Guardar reporte de resultados
     with open(f"{CARPETA_RESULTADOS}/reporte_{nombre_modelo}.txt", "w", encoding="utf-8") as archivo:
         archivo.write(f"REPORTE DEL MODELO: {nombre_modelo}\n")
         archivo.write("=" * 60 + "\n\n")
@@ -107,13 +107,11 @@ def entrenar_modelo(X_vect, y, nombre_modelo):
         "f1_score": f1_macro
     }
 
-
-# =========================
-# CARGA DEL DATASET
-# =========================
+# Carga del dataset
 
 df = pd.read_csv(RUTA_DATASET, encoding="utf-8-sig")
 
+# Eliminar registros incompletos
 df = df.dropna(subset=[
     "pregunta",
     "emocion",
@@ -122,23 +120,19 @@ df = df.dropna(subset=[
     "recomendacion"
 ])
 
-
-# =========================
-# PREPARACIÓN DE DATOS
-# =========================
+# Preparación de datos
 
 df["pregunta"] = df["pregunta"].apply(limpiar_texto)
 df["emocion"] = df["emocion"].astype(str).str.strip().str.upper()
 df["intencion"] = df["intencion"].astype(str).str.strip()
 df["nivel_emocional"] = df["nivel_emocional"].astype(str).str.strip().str.upper()
 
+# Variable de entrada
 X = df["pregunta"]
 
+# Vectorización TF-IDF
 
-# =========================
-# VECTORIZACIÓN TF-IDF
-# =========================
-
+# Convierte el texto en valores numéricos
 vectorizador = FeatureUnion([
     ("tfidf_palabras", TfidfVectorizer(
         analyzer="word",
@@ -158,35 +152,33 @@ vectorizador = FeatureUnion([
 
 X_vect = vectorizador.fit_transform(X)
 
+# Guardar vectorizador
 joblib.dump(vectorizador, f"{CARPETA_MODELOS}/vectorizador.pkl")
 
+# Entrenamiento de modelos
 
-# =========================
-# ENTRENAMIENTO DE MODELOS
-# =========================
-
+# Modelo de emociones
 resultado_emocion = entrenar_modelo(
     X_vect,
     df["emocion"],
     "modelo_emocion"
 )
 
+# Modelo de intenciones
 resultado_intencion = entrenar_modelo(
     X_vect,
     df["intencion"],
     "modelo_intencion"
 )
 
+# Modelo de nivel emocional
 resultado_nivel = entrenar_modelo(
     X_vect,
     df["nivel_emocional"],
     "modelo_nivel_emocional"
 )
 
-
-# =========================
-# RESUMEN FINAL
-# =========================
+# Resumen de métricas
 
 resultados = pd.DataFrame([
     resultado_emocion,
@@ -199,6 +191,7 @@ resultados["precision"] = (resultados["precision"] * 100).round(2)
 resultados["recall"] = (resultados["recall"] * 100).round(2)
 resultados["f1_score"] = (resultados["f1_score"] * 100).round(2)
 
+# Exportar resumen final
 resultados.to_csv(
     f"{CARPETA_RESULTADOS}/resumen_metricas_modelos.csv",
     index=False,

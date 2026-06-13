@@ -1,9 +1,9 @@
-# IMPORTACIONES
+# Importaciones principales
 
 from flask import Flask, request, jsonify
 from openai import OpenAI
 
-from conexion.base_datos import guardar_analisis_emocional
+from conexion.base_datos import guardar_analisis_emocional, obtener_datos_estudiante
 from nlp.reglas_emocionales import analizar_por_reglas
 from memoria.memoria_chatbot import (
     guardar_mensaje_usuario,
@@ -20,24 +20,26 @@ import pandas as pd
 from sklearn.metrics.pairwise import cosine_similarity
 
 
-# INICIALIZACIÓN
+# Inicialización del servidor Flask
 
 app = Flask(__name__)
 
+# Cliente de OpenAI para generar respuestas conversacionales
 client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 
-# CARGA DE MODELOS
+# Carga de modelos entrenados
 
 vectorizador = joblib.load("modelos/vectorizador.pkl")
 modelo_emocion = joblib.load("modelos/modelo_emocion.pkl")
 modelo_intencion = joblib.load("modelos/modelo_intencion.pkl")
 modelo_nivel = joblib.load("modelos/modelo_nivel_emocional.pkl")
 
+# Dataset usado como referencia para comparación por similitud
 df_dataset = pd.read_csv("dataset/dataset_limpio.csv", encoding="utf-8-sig")
 
 
-# LIMPIEZA DE TEXTO
+# Limpieza básica del texto
 
 def limpiar_texto(texto):
     texto = str(texto).lower().strip()
@@ -46,13 +48,13 @@ def limpiar_texto(texto):
     return texto
 
 
-# VECTORIZACIÓN DEL DATASET
+# Preparación del dataset para similitud
 
 df_dataset["pregunta"] = df_dataset["pregunta"].apply(limpiar_texto)
 matriz_dataset = vectorizador.transform(df_dataset["pregunta"])
 
 
-# CONFIANZA DEL MODELO
+# Calcula el nivel de seguridad del modelo
 
 def obtener_confianza(modelo, texto_vectorizado):
     probabilidades = modelo.predict_proba(texto_vectorizado)[0]
@@ -60,7 +62,7 @@ def obtener_confianza(modelo, texto_vectorizado):
     return round(confianza * 100, 2)
 
 
-# SIMILITUD CON DATASET
+# Busca el mensaje más parecido dentro del dataset
 
 def analizar_por_similitud(mensaje_vectorizado):
     similitudes = cosine_similarity(mensaje_vectorizado, matriz_dataset)[0]
@@ -81,14 +83,16 @@ def analizar_por_similitud(mensaje_vectorizado):
     return None
 
 
-# ANÁLISIS EMOCIONAL
+# Analiza el mensaje usando reglas, modelos NLP y similitud
 
 def analizar_mensaje(mensaje):
+    # Primero se aplican reglas para casos claros o prioritarios
     resultado_regla = analizar_por_reglas(mensaje)
 
     if resultado_regla:
         return resultado_regla
 
+    # Si no hay regla aplicable, se usa el modelo entrenado
     mensaje_limpio = limpiar_texto(mensaje)
     mensaje_vectorizado = vectorizador.transform([mensaje_limpio])
 
@@ -96,15 +100,18 @@ def analizar_mensaje(mensaje):
     intencion = modelo_intencion.predict(mensaje_vectorizado)[0]
     nivel_emocional = modelo_nivel.predict(mensaje_vectorizado)[0]
 
+    # Confianza individual de cada clasificación
     confianza_emocion = obtener_confianza(modelo_emocion, mensaje_vectorizado)
     confianza_intencion = obtener_confianza(modelo_intencion, mensaje_vectorizado)
     confianza_nivel = obtener_confianza(modelo_nivel, mensaje_vectorizado)
 
+    # Confianza general del análisis
     puntaje_confianza = round(
         (confianza_emocion + confianza_intencion + confianza_nivel) / 3,
         2
     )
 
+    # Si la confianza es baja, se intenta comparar con ejemplos del dataset
     if puntaje_confianza < 85:
         resultado_similitud = analizar_por_similitud(mensaje_vectorizado)
 
@@ -120,7 +127,7 @@ def analizar_mensaje(mensaje):
     }
 
 
-# RECOMENDACIÓN
+# Genera una recomendación según emoción y nivel detectado
 
 def generar_recomendacion(emocion, nivel_emocional):
     if nivel_emocional == "CRITICO":
@@ -153,7 +160,7 @@ def generar_recomendacion(emocion, nivel_emocional):
     return "Responder con orientación general y continuar la conversación."
 
 
-# PERSONALIDAD DEL CHATBOT
+# Instrucciones de comportamiento del chatbot
 
 PERSONALIDAD_CHATBOT = """
 Eres SEA, un chatbot emocional y académico para estudiantes de secundaria.
@@ -190,17 +197,17 @@ Importante:
 """
 
 
-# RUTA DE PRUEBA
+# Ruta para verificar que el servidor está activo
 
 @app.route("/", methods=["GET"])
 def inicio():
     return jsonify({
         "estado": "activo",
-        "mensaje": "Servidor SEA funcionando con memoria conversacional, reglas, NLP y OpenAI001_2"
+        "mensaje": "Servidor SEA funcionando con nombre, genero, memoria conversacional, reglas, NLP y OpenAI001_ULTIMOO"
     })
 
 
-# ENDPOINT PRINCIPAL
+# Endpoint principal del chatbot
 
 @app.route("/chatbot", methods=["POST"])
 def chatbot():
@@ -216,6 +223,28 @@ def chatbot():
         mensaje = data.get("mensaje", "").strip()
         id_usuario = data.get("id_usuario")
 
+        nombre_estudiante = "Estudiante"
+        genero_estudiante = "NO_ESPECIFICADO"
+
+        # Obtener nombre y género desde la tabla estudiantes
+        if id_usuario:
+            try:
+                datos_estudiante = obtener_datos_estudiante(id_usuario)
+
+                if datos_estudiante:
+                    nombres = datos_estudiante.get("nombres") or ""
+                    apellidos = datos_estudiante.get("apellidos") or ""
+                    genero_estudiante = datos_estudiante.get("genero") or "NO_ESPECIFICADO"
+
+                    nombre_estudiante = f"{nombres} {apellidos}".strip()
+
+                    if not nombre_estudiante:
+                        nombre_estudiante = "Estudiante"
+
+            except Exception:
+                pass
+
+        # Validación cuando el estudiante no envía texto
         if not mensaje:
             return jsonify({
                 "respuesta": "Escribe un mensaje para poder ayudarte.",
@@ -229,25 +258,27 @@ def chatbot():
                 "estado_seguimiento": "PENDIENTE",
                 "origen_analisis": "validacion",
                 "guardado_bd": False,
-                "mensaje_bd": "No se guardó porque el mensaje estaba vacío"
+                "mensaje_bd": "No se guardó porque el mensaje estaba vacío",
+                "nombre_estudiante": nombre_estudiante,
+                "genero_estudiante": genero_estudiante
             })
 
-        # Guardar mensaje del estudiante en memoria
+        # Guarda el mensaje para mantener memoria de conversación
         try:
             guardar_mensaje_usuario(id_usuario, mensaje)
         except Exception:
             pass
 
-        # Obtener historial reciente
+        # Obtiene el historial reciente del estudiante
         try:
             historial_chatbot = construir_historial_chatbot(id_usuario, limite=10)
         except Exception:
             historial_chatbot = ""
 
-        # Analizar mensaje del estudiante
+        # Análisis emocional del mensaje actual
         analisis = analizar_mensaje(mensaje)
 
-        # Crear recomendación
+        # Recomendación interna según el análisis
         recomendacion = generar_recomendacion(
             analisis["emocion"],
             analisis["nivel_emocional"]
@@ -256,7 +287,7 @@ def chatbot():
         guardado_bd = False
         mensaje_bd = "No se recibió id_usuario"
 
-        # Guardar análisis emocional en la base de datos
+        # Guarda el análisis emocional para el seguimiento psicológico
         if id_usuario:
             try:
                 guardado_bd, mensaje_bd = guardar_analisis_emocional(
@@ -271,8 +302,12 @@ def chatbot():
                 guardado_bd = False
                 mensaje_bd = f"Error al guardar en BD: {str(error_bd)}"
 
-        # Contexto para OpenAI con memoria conversacional
+        # Información enviada a OpenAI para generar la respuesta natural
         entrada_usuario = f"""
+Datos del estudiante:
+- Nombre: {nombre_estudiante}
+- Género: {genero_estudiante}
+
 Historial reciente de conversación:
 {historial_chatbot}
 
@@ -287,12 +322,13 @@ Análisis emocional detectado:
 
 Responde como SEA siguiendo tu personalidad.
 Usa el historial solo para mantener continuidad de la conversación.
-Si el estudiante mencionó antes su nombre, puedes recordarlo.
+Puedes llamar al estudiante por su nombre cuando sea natural.
+Adapta el lenguaje según su género cuando corresponda.
 No menciones porcentajes ni detalles técnicos del modelo.
 Prioriza que el estudiante se sienta escuchado y quiera continuar hablando.
 """
 
-        # Generar respuesta conversacional
+        # Genera la respuesta conversacional del chatbot
         respuesta = client.responses.create(
             model="gpt-5.4-mini",
             instructions=PERSONALIDAD_CHATBOT,
@@ -301,7 +337,7 @@ Prioriza que el estudiante se sienta escuchado y quiera continuar hablando.
 
         respuesta_texto = respuesta.output_text
 
-        # Guardar respuesta del chatbot en memoria
+        # Guarda la respuesta del chatbot en la memoria
         try:
             guardar_respuesta_bot(id_usuario, respuesta_texto)
         except Exception:
@@ -319,7 +355,9 @@ Prioriza que el estudiante se sienta escuchado y quiera continuar hablando.
             "estado_seguimiento": "PENDIENTE",
             "origen_analisis": analisis.get("origen", "modelo"),
             "guardado_bd": guardado_bd,
-            "mensaje_bd": mensaje_bd
+            "mensaje_bd": mensaje_bd,
+            "nombre_estudiante": nombre_estudiante,
+            "genero_estudiante": genero_estudiante
         })
 
     except Exception as e:
@@ -329,7 +367,7 @@ Prioriza que el estudiante se sienta escuchado y quiera continuar hablando.
         }), 500
 
 
-# EJECUCIÓN LOCAL
+# Ejecución local del servidor
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))

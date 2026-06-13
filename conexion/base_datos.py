@@ -35,6 +35,29 @@ def obtener_id_estudiante(id_usuario):
     return None
 
 
+def obtener_datos_estudiante(id_usuario):
+    conexion = obtener_conexion()
+    cursor = conexion.cursor(dictionary=True)
+
+    sql = """
+        SELECT nombres, apellidos, genero
+        FROM estudiantes
+        WHERE id_usuario = %s
+        LIMIT 1
+    """
+
+    cursor.execute(sql, (id_usuario,))
+    resultado = cursor.fetchone()
+
+    cursor.close()
+    conexion.close()
+
+    if resultado:
+        return resultado
+
+    return None
+
+
 def obtener_id_emocion(nombre_emocion):
     conexion = obtener_conexion()
     cursor = conexion.cursor(dictionary=True)
